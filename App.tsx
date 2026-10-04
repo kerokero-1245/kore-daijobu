@@ -32,7 +32,7 @@ export default function App() {
             <Stack.Screen
               name="RoleSelect"
               component={RoleSelectScreen}
-              options={{ title: 'これ大丈夫？（開発用）' }}
+              options={{ title: 'これ、大丈夫？（開発用）' }}
             />
             <Stack.Screen name="ParentHome" component={ParentHomeScreen} options={{ title: '' }} />
             <Stack.Screen
