@@ -25,7 +25,7 @@ export default function BigButton({ label, onPress, emoji, sub, color, textColor
         !color && styles.bordered,
       ]}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={sub ? `${label}、${sub}` : label}
     >
       <View style={styles.row}>
         {emoji ? <Text style={styles.emoji}>{emoji}</Text> : null}
@@ -68,6 +68,5 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: font.small,
     marginTop: 4,
-    opacity: 0.8,
   },
 });

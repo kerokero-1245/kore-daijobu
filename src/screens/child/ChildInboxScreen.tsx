@@ -38,6 +38,10 @@ export default function ChildInboxScreen({ navigation }: Props) {
           <Pressable
             style={({ pressed }) => [styles.row, pressed && { opacity: 0.9 }]}
             onPress={() => navigation.navigate('ConsultationDetail', { consultationId: item.id })}
+            accessibilityRole="button"
+            accessibilityLabel={`${categoryLabel(item.category)}、${formatTime(item.createdAt)}、${
+              item.status === 'answered' ? '返信済み' : '未対応'
+            }`}
           >
             <Text style={styles.emoji}>{categoryEmoji(item.category)}</Text>
             <View style={{ flex: 1 }}>
