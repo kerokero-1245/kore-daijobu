@@ -6,16 +6,16 @@ import { RootStackParamList } from '../../navigation/types';
 import Screen from '../../components/Screen';
 import BigButton from '../../components/BigButton';
 import { useStore } from '../../data/store';
-import { categoryLabel, VERDICT_HEADLINE } from '../../constants';
+import { categoryLabel, CHILD_NAME, VERDICT_HEADLINE } from '../../constants';
 import { colors, font, radius, space, verdictColor } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ParentStatus'>;
 
-const CHILD_NAME = 'たろう';
-
 export default function ParentStatusScreen({ navigation, route }: Props) {
   const { getConsultation } = useStore();
   const consultation = getConsultation(route.params.consultationId);
+  // navigate だと ParentHome が新しく積まれるので、既存の ParentHome まで戻る。
+  const goHome = () => navigation.popTo('ParentHome');
 
   if (!consultation) {
     return (
@@ -26,7 +26,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
             label="ホームにもどる"
             color={colors.primary}
             textColor={colors.primaryText}
-            onPress={() => navigation.navigate('ParentHome')}
+            onPress={goHome}
           />
         </View>
       </Screen>
@@ -54,7 +54,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
               label="ホームにもどる"
               color={colors.primary}
               textColor={colors.primaryText}
-              onPress={() => navigation.navigate('ParentHome')}
+              onPress={goHome}
             />
           </>
         ) : (
@@ -64,6 +64,13 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
             <Text style={styles.waitingSub}>
               返事が来るまで、相手には「ちょっと待ってね」と伝えて、電話は切って大丈夫です。
             </Text>
+            <View style={{ height: space.xl }} />
+            <BigButton
+              label="ホームにもどる"
+              color={colors.primary}
+              textColor={colors.primaryText}
+              onPress={goHome}
+            />
           </>
         )}
       </View>

@@ -1,5 +1,8 @@
 import { Category, Verdict } from './types';
 
+// 相談相手（子）の表示名。仮の名前で、ペアリング実装で置き換える。
+export const CHILD_NAME = 'たろう';
+
 // 親が選ぶ相談の種類（表示順）。
 export const CATEGORIES: { key: Category; label: string; emoji: string }[] = [
   { key: 'money', label: 'お金の話', emoji: '💰' },

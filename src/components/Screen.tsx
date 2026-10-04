@@ -19,7 +19,7 @@ export default function Screen({ children, scroll }: Props) {
   };
   if (scroll) {
     return (
-      <ScrollView style={styles.root} contentContainerStyle={pad}>
+      <ScrollView style={styles.root} contentContainerStyle={[pad, styles.grow]}>
         {children}
       </ScrollView>
     );
@@ -34,5 +34,9 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  // 内容が短いときも画面の高さいっぱいに広げ、中央寄せの配置を保つ。
+  grow: {
+    flexGrow: 1,
   },
 });
