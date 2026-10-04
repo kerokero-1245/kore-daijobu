@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../../navigation/types';
 import Screen from '../../components/Screen';
 import BigButton from '../../components/BigButton';
 import { useStore } from '../../data/store';
-import { categoryEmoji, categoryLabel, REPLY_TEMPLATES, VERDICT_HEADLINE } from '../../constants';
+import {
+  categoryEmoji,
+  categoryLabel,
+  REPLY_TEMPLATES,
+  VERDICT_CHOICES,
+  VERDICT_HEADLINE,
+} from '../../constants';
 import { Verdict } from '../../types';
 import { colors, font, radius, space, verdictColor } from '../../theme';
 import { formatTime } from '../../util';
@@ -17,6 +23,12 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
   const { getConsultation, replyToConsultation } = useStore();
   const consultation = getConsultation(route.params.consultationId);
   const [text, setText] = useState('');
+  // 自由入力の返信で子が選んだ判定。選ぶまでは送れない。
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  // 送れない状態で「送る」を押したら、理由を画面に出す。
+  const [triedFree, setTriedFree] = useState(false);
+  // 続けて押されても 1 回だけ送る（goBack が 2 回走らないように）。
+  const sending = useRef(false);
 
   if (!consultation) {
     return (
@@ -26,10 +38,23 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  const send = (verdict: Verdict, message: string) => {
-    if (!message.trim()) return;
-    replyToConsultation(consultation.id, verdict, message.trim());
+  const send = (v: Verdict, message: string) => {
+    if (sending.current || !message.trim()) return;
+    sending.current = true;
+    replyToConsultation(consultation.id, v, message.trim());
     navigation.goBack();
+  };
+
+  const freeErrors: string[] = [];
+  if (!text.trim()) freeErrors.push('返信の文面を入力してください');
+  if (!verdict) freeErrors.push('判定を選んでください');
+
+  const sendFree = () => {
+    if (freeErrors.length > 0 || !verdict) {
+      setTriedFree(true);
+      return;
+    }
+    send(verdict, text);
   };
 
   const reply = consultation.status === 'answered' ? consultation.reply : undefined;
@@ -75,11 +100,49 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
             placeholderTextColor={colors.subtext}
             multiline
           />
+          <Text style={styles.choiceTitle}>判定を選ぶ</Text>
+          <View accessibilityRole="radiogroup" accessibilityLabel="判定">
+            {VERDICT_CHOICES.map((c) => {
+              const selected = verdict === c.verdict;
+              const tint = verdictColor[c.verdict];
+              return (
+                <Pressable
+                  key={c.verdict}
+                  onPress={() => setVerdict(c.verdict)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={c.label}
+                  accessibilityState={{ checked: selected }}
+                  style={({ pressed }) => [
+                    styles.choice,
+                    { borderColor: selected ? tint : colors.border },
+                    selected && { backgroundColor: tint },
+                    pressed && { opacity: 0.9 },
+                  ]}
+                >
+                  <Text style={[styles.choiceText, { color: selected ? '#FFFFFF' : tint }]}>
+                    {selected ? '● ' : '○ '}
+                    {c.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {triedFree && freeErrors.length > 0 ? (
+            <View accessibilityRole="alert" style={styles.errors}>
+              {freeErrors.map((e) => (
+                <Text key={e} style={styles.errorText}>
+                  {e}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
           <BigButton
             label="この内容で送る"
             color={colors.primary}
             textColor="#FFFFFF"
-            onPress={() => send('unsure', text)}
+            onPress={sendFree}
           />
         </>
       )}
@@ -112,6 +175,24 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginBottom: space.md,
   },
+  choiceTitle: {
+    fontSize: font.small,
+    color: colors.subtext,
+    marginBottom: space.sm,
+  },
+  choice: {
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderRadius: radius.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    minHeight: 56,
+    justifyContent: 'center',
+    marginBottom: space.sm,
+  },
+  choiceText: { fontSize: font.body, fontWeight: '700' },
+  errors: { marginTop: space.xs, marginBottom: space.md },
+  errorText: { fontSize: font.body, fontWeight: '700', color: colors.danger, marginTop: space.xs },
   replyCard: {
     backgroundColor: colors.surface,
     borderWidth: 2,
