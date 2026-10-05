@@ -19,7 +19,14 @@ export default function Screen({ children, scroll }: Props) {
   };
   if (scroll) {
     return (
-      <ScrollView style={styles.root} contentContainerStyle={[pad, styles.grow]}>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[pad, styles.grow]}
+        // 内容が画面に収まっているときは縦にバウンスさせない（iOS）。
+        alwaysBounceVertical={false}
+        // キーボードが出ていても、1 回目のタップでボタンを押せるようにする。
+        keyboardShouldPersistTaps="handled"
+      >
         {children}
       </ScrollView>
     );

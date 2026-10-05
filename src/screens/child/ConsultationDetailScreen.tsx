@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../../navigation/types';
@@ -18,6 +18,9 @@ import { colors, font, radius, space, verdictColor } from '../../theme';
 import { formatTime } from '../../util';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ConsultationDetail'>;
+
+// 自由入力の返信の上限。親の答えの画面で読み切れる長さに抑える。
+const MAX_REPLY_LENGTH = 200;
 
 export default function ConsultationDetailScreen({ navigation, route }: Props) {
   const { getConsultation, replyToConsultation } = useStore();
@@ -52,6 +55,9 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
   const sendFree = () => {
     if (freeErrors.length > 0 || !verdict) {
       setTriedFree(true);
+      // iOS は画面の変化を自動では読み上げないので、送れない理由を読み上げに通知する。
+      // （Android は下の live region、Web は role="alert" で読み上げられる）
+      if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(freeErrors.join('。'));
       return;
     }
     send(verdict, text);
@@ -91,13 +97,14 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
             </View>
           ))}
 
-          <Text style={styles.orText}>自分の言葉で返信</Text>
+          <Text style={styles.orText}>自分の言葉で返信（{MAX_REPLY_LENGTH}字まで）</Text>
           <TextInput
             style={styles.input}
             value={text}
             onChangeText={setText}
             placeholder="例）その電話は詐欺だよ。相手にしないで大丈夫。"
             placeholderTextColor={colors.subtext}
+            maxLength={MAX_REPLY_LENGTH}
             multiline
           />
           <Text style={styles.choiceTitle}>判定を選ぶ</Text>
@@ -111,7 +118,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
                   onPress={() => setVerdict(c.verdict)}
                   accessibilityRole="radio"
                   accessibilityLabel={c.label}
-                  accessibilityState={{ checked: selected }}
+                  aria-checked={selected}
                   style={({ pressed }) => [
                     styles.choice,
                     { borderColor: selected ? tint : colors.border },
@@ -128,15 +135,18 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
             })}
           </View>
 
-          {triedFree && freeErrors.length > 0 ? (
-            <View accessibilityRole="alert" style={styles.errors}>
-              {freeErrors.map((e) => (
-                <Text key={e} style={styles.errorText}>
-                  {e}
-                </Text>
-              ))}
-            </View>
-          ) : null}
+          {/* 外側は常に置いておき、中身が変わったら Android が読み上げる（live region） */}
+          <View accessibilityLiveRegion="assertive">
+            {triedFree && freeErrors.length > 0 ? (
+              <View accessibilityRole="alert" style={styles.errors}>
+                {freeErrors.map((e) => (
+                  <Text key={e} style={styles.errorText}>
+                    {e}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
 
           <BigButton
             label="この内容で送る"
