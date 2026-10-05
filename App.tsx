@@ -43,7 +43,8 @@ export default function App() {
             <Stack.Screen
               name="ParentStatus"
               component={ParentStatusScreen}
-              options={{ title: '', headerBackVisible: false }}
+              // 戻るは画面内の「ホームにもどる」に一本化する。Web では headerBackVisible が効かないので headerLeft も消す。
+              options={{ title: '', headerBackVisible: false, headerLeft: () => null }}
             />
             <Stack.Screen
               name="ChildInbox"

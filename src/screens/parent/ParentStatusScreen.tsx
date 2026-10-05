@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -12,8 +12,13 @@ import { colors, font, radius, space, verdictColor } from '../../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'ParentStatus'>;
 
 export default function ParentStatusScreen({ navigation, route }: Props) {
-  const { getConsultation } = useStore();
+  const { getConsultation, markAnswerSeen } = useStore();
   const consultation = getConsultation(route.params.consultationId);
+  const answeredUnseen = consultation?.status === 'answered' && !consultation.parentSeenAt;
+  // 答えが表示されたら「親が開いた」と記録する（親ホームの並び順に使う）。
+  useEffect(() => {
+    if (answeredUnseen) markAnswerSeen(route.params.consultationId);
+  }, [answeredUnseen, markAnswerSeen, route.params.consultationId]);
   // navigate だと ParentHome が新しく積まれるので、既存の ParentHome まで戻る。
   const goHome = () => navigation.popTo('ParentHome');
 
@@ -35,8 +40,9 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
 
   const reply = consultation.status === 'answered' ? consultation.reply : undefined;
 
+  // 長い返信でも見出しが隠れないよう、スクロールできる画面にする（内容が短いときは中央寄せ）。
   return (
-    <Screen>
+    <Screen scroll>
       <View style={styles.center}>
         <Text style={styles.category}>{categoryLabel(consultation.category)}</Text>
 

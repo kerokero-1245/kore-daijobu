@@ -11,6 +11,7 @@ interface StoreValue {
   getConsultation: (id: string) => Consultation | undefined;
   createConsultation: (category: Category, photoUri?: string) => string; // 返り値: 作成したid
   replyToConsultation: (id: string, verdict: Verdict, message: string) => void;
+  markAnswerSeen: (id: string) => void; // 親が答えを開いたことを記録する
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -48,14 +49,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const markAnswerSeen = useCallback((id: string) => {
+    setConsultations((prev) => {
+      const target = prev.find((c) => c.id === id);
+      if (!target || target.status !== 'answered' || target.parentSeenAt) return prev; // 変化なし
+      return prev.map((c) => (c.id === id ? { ...c, parentSeenAt: Date.now() } : c));
+    });
+  }, []);
+
   const getConsultation = useCallback(
     (id: string) => consultations.find((c) => c.id === id),
     [consultations]
   );
 
   const value = useMemo<StoreValue>(
-    () => ({ consultations, getConsultation, createConsultation, replyToConsultation }),
-    [consultations, getConsultation, createConsultation, replyToConsultation]
+    () => ({ consultations, getConsultation, createConsultation, replyToConsultation, markAnswerSeen }),
+    [consultations, getConsultation, createConsultation, replyToConsultation, markAnswerSeen]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

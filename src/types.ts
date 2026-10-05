@@ -29,4 +29,5 @@ export interface Consultation {
   status: ConsultationStatus;
   createdAt: number; // epoch ms
   reply?: Reply;
+  parentSeenAt?: number; // 親が答えの画面を開いた時刻 (epoch ms)。未読の答えを先に出すのに使う
 }
