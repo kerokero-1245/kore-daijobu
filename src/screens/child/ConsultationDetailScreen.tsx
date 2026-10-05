@@ -135,8 +135,9 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
             })}
           </View>
 
-          {/* 外側は常に置いておき、中身が変わったら Android が読み上げる（live region） */}
-          <View accessibilityLiveRegion="assertive">
+          {/* 外側は常に置いておき、中身が変わったら Android が読み上げる（live region）。
+              Web は内側の role="alert" で読み上げるので、二重にならないよう Android だけに付ける */}
+          <View accessibilityLiveRegion={Platform.OS === 'android' ? 'assertive' : undefined}>
             {triedFree && freeErrors.length > 0 ? (
               <View accessibilityRole="alert" style={styles.errors}>
                 {freeErrors.map((e) => (
