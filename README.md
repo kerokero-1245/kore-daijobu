@@ -25,6 +25,8 @@ npm install        # 初回のみ
 npm start          # Expo 開発サーバーを起動
 ```
 
+型チェックは `npm run typecheck`。main への push と pull request では、GitHub Actions（`.github/workflows/ci.yml`）が同じ型チェックを走らせます。
+
 起動後、ターミナルに QR コードが出ます。
 
 - iPhone: App Store で **Expo Go** を入れ、カメラで QR を読む
