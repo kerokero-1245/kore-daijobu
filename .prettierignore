@@ -1,0 +1,10 @@
+# 生成物・ビルド出力・依存・ロックファイルは整形しない
+node_modules
+.expo
+dist
+web-build
+ios
+android
+expo-env.d.ts
+package-lock.json
+*.min.*
