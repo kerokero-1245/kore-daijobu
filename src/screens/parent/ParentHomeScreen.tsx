@@ -7,7 +7,7 @@ import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useStore } from "../../data/store";
 import useOnce from "../../hooks/useOnce";
-import { CHILD_NAME } from "../../constants";
+import { APP_NAME_TWO_LINES, CHILD_CALL_NAME } from "../../constants";
 import { categoryLabel } from "../../domain/category";
 import {
   entryLabel,
@@ -62,7 +62,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
       {unseen.length > 0 ? (
         <View style={styles.unseen}>
           <Text style={styles.sectionTitle}>
-            {CHILD_NAME} さんから答えが届いています
+            {CHILD_CALL_NAME}から答えが届いています
           </Text>
           {unseen.map(renderEntry)}
         </View>
@@ -80,11 +80,11 @@ export default function ParentHomeScreen({ navigation }: Props) {
           accessibilityLabel="これ大丈夫か相談する"
         >
           <Text style={styles.bigButtonEmoji}>🛡️</Text>
-          <Text style={styles.bigButtonText}>これ、{"\n"}大丈夫？</Text>
+          <Text style={styles.bigButtonText}>{APP_NAME_TWO_LINES}</Text>
         </Pressable>
         <Text style={styles.sub}>
           ボタンを押すと{"\n"}
-          {CHILD_NAME} さんに相談できます
+          {CHILD_CALL_NAME}に相談できます
         </Text>
       </View>
 

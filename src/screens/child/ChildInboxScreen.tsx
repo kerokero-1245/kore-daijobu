@@ -7,6 +7,7 @@ import Emoji from "../../components/Emoji";
 import Screen from "../../components/Screen";
 import Spacer from "../../components/Spacer";
 import StatusBadge, { STATUS_BADGE } from "../../components/StatusBadge";
+import { APP_NAME } from "../../constants";
 import { useStore } from "../../data/store";
 import { categoryEmoji, categoryLabel } from "../../domain/category";
 import { formatTime } from "../../domain/time";
@@ -31,7 +32,7 @@ export default function ChildInboxScreen({ navigation }: Props) {
         <View style={styles.empty}>
           <Text style={styles.emptyText}>まだ相談はありません。</Text>
           <Text style={styles.emptySub}>
-            親が「これ、大丈夫？」を押すと、ここに届きます。
+            {`親が「${APP_NAME}」を押すと、ここに届きます。`}
           </Text>
         </View>
       </Screen>

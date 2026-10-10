@@ -6,6 +6,7 @@ import { RootStackParamList } from "../navigation/types";
 import Screen from "../components/Screen";
 import BigButton from "../components/BigButton";
 import Spacer from "../components/Spacer";
+import { APP_NAME } from "../constants";
 import { colors, font, lineHeight, space, textStyle } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoleSelect">;
@@ -16,7 +17,7 @@ export default function RoleSelectScreen({ navigation }: Props) {
   return (
     <Screen>
       <View style={styles.top}>
-        <Text style={styles.title}>これ、大丈夫？</Text>
+        <Text style={styles.title}>{APP_NAME}</Text>
         <Text style={styles.note}>
           開発用の入口です。実際のアプリでは、親のスマホは「親」、あなたのスマホは「子」に固定されます。
         </Text>

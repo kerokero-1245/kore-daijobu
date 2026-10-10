@@ -1,7 +1,21 @@
 import type { Verdict } from "./types";
 
-// 相談相手（子）の表示名。仮の名前で、ペアリング実装で置き換える。
-export const CHILD_NAME = "たろう";
+// 名前に敬称を付けた呼び名。親の画面に子の名前を出すときは、この形にそろえる。
+export function callName(name: string): string {
+  return `${name} さん`;
+}
+
+// 相談相手（子）の名前。仮の名前で、ペアリング実装で置き換える。
+const CHILD_NAME = "たろう";
+
+// 親の画面に出す、子の呼び名。ペアリング実装では、ペアの相手の名前から callName で作る。
+export const CHILD_CALL_NAME = callName(CHILD_NAME);
+
+// アプリ名（親ホームの大ボタンの名前でもある）。app.json の name（ホーム画面の名前）は別。
+const APP_NAME_LINES = ["これ、", "大丈夫？"];
+export const APP_NAME = APP_NAME_LINES.join("");
+// 大ボタンに入れるときの形（改行の位置を決めている）。
+export const APP_NAME_TWO_LINES = APP_NAME_LINES.join("\n");
 
 // 子がタップで返信できる定型文。
 export const REPLY_TEMPLATES: { verdict: Verdict; message: string }[] = [

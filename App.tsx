@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { APP_NAME } from "./src/constants";
 import { StoreProvider } from "./src/data/store";
 import { RootStackParamList } from "./src/navigation/types";
 import { colors, textStyle } from "./src/theme";
@@ -32,7 +33,7 @@ export default function App() {
             <Stack.Screen
               name="RoleSelect"
               component={RoleSelectScreen}
-              options={{ title: "これ、大丈夫？（開発用）" }}
+              options={{ title: `${APP_NAME}（開発用）` }}
             />
             <Stack.Screen
               name="ParentHome"

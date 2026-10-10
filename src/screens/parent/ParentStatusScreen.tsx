@@ -7,7 +7,7 @@ import Screen from "../../components/Screen";
 import HomeButton from "../../components/HomeButton";
 import Spacer from "../../components/Spacer";
 import { useStore } from "../../data/store";
-import { CHILD_NAME, VERDICT_META } from "../../constants";
+import { CHILD_CALL_NAME, VERDICT_META } from "../../constants";
 import { categoryLabel } from "../../domain/category";
 import { answeredReply, isUnseenAnswer } from "../../domain/consultation";
 import type { Reply } from "../../types";
@@ -58,7 +58,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
         </Text>
         <View style={[styles.replyCard, tone.border]}>
           <Text style={styles.replyMessage}>{r.message}</Text>
-          <Text style={styles.replyFrom}>{CHILD_NAME} さんより</Text>
+          <Text style={styles.replyFrom}>{CHILD_CALL_NAME}より</Text>
         </View>
         <Spacer size="xl" />
         <HomeButton onPress={goHome} />
@@ -84,7 +84,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
               style={{ marginVertical: space.lg }}
             />
             <Text style={styles.waiting}>
-              {CHILD_NAME} さんに{"\n"}相談しています…
+              {CHILD_CALL_NAME}に{"\n"}相談しています…
             </Text>
             <Text style={styles.waitingSub}>
               返事が来るまで、相手には「ちょっと待ってね」と伝えて、電話は切って大丈夫です。
