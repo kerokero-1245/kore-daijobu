@@ -1,7 +1,7 @@
 // アプリ全体の見た目の基準値。
 // 高齢の親が使う画面なので「大きく・高コントラスト・少ない要素」を原則にする。
 
-import type { TextStyle, ViewStyle } from "react-native";
+import type { TextStyle } from "react-native";
 import type { Verdict } from "./types";
 
 export const colors = {
@@ -54,8 +54,13 @@ export const lineHeight = {
   small: 24,
 };
 
+// スタイルの表を、型を狭いまま（"700" や string のまま）RN のスタイルとして検査して返す。
+function defineStyles<T extends Record<string, TextStyle>>(styles: T): T {
+  return styles;
+}
+
 // 文字の組（大きさ・太さ・色）。画面の StyleSheet は展開して、余白などの差分だけ書く。
-export const textStyle = {
+export const textStyle = defineStyles({
   // 補足（時刻・注記・ラベル）
   caption: { fontSize: font.small, color: colors.subtext },
   // 本文
@@ -66,12 +71,12 @@ export const textStyle = {
   bodyStrong: { fontSize: font.body, fontWeight: "700", color: colors.text },
   // 大きい文字の太字（見出し・返信の文面）
   bigStrong: { fontSize: font.big, fontWeight: "700", color: colors.text },
-} satisfies Record<string, TextStyle>;
+});
 
 // 横に並べて、縦は中央にそろえる（絵文字 + 文字の行など）。
-export const layout = {
+export const layout = defineStyles({
   centerRow: { flexDirection: "row", alignItems: "center" },
-} satisfies Record<string, ViewStyle>;
+});
 
 // 押している間の不透明度。ボタン（BigButton）と、行・大ボタン・選択肢で別の値のまま。
 export const pressedOpacity = { button: 0.85, item: 0.9 };
