@@ -1,9 +1,9 @@
 // 画面の共通ラッパー。セーフエリアと余白・背景色をまとめる。
 
-import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, space } from '../theme';
+import React from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, space } from "../theme";
 
 interface Props {
   children: React.ReactNode;

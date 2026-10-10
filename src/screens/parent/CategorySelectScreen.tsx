@@ -1,16 +1,16 @@
-import React, { useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import React, { useRef } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { RootStackParamList } from '../../navigation/types';
-import Screen from '../../components/Screen';
-import BigButton from '../../components/BigButton';
-import { CATEGORIES } from '../../constants';
-import { Category } from '../../types';
-import { useStore } from '../../data/store';
-import { colors, font, space } from '../../theme';
+import { RootStackParamList } from "../../navigation/types";
+import Screen from "../../components/Screen";
+import BigButton from "../../components/BigButton";
+import { CATEGORIES } from "../../constants";
+import { Category } from "../../types";
+import { useStore } from "../../data/store";
+import { colors, font, space } from "../../theme";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CategorySelect'>;
+type Props = NativeStackScreenProps<RootStackParamList, "CategorySelect">;
 
 export default function CategorySelectScreen({ navigation }: Props) {
   const { createConsultation } = useStore();
@@ -22,7 +22,7 @@ export default function CategorySelectScreen({ navigation }: Props) {
     submitting.current = true;
     const id = createConsultation(category);
     // replace にして、答え画面から「戻る」でホームに戻れるようにする。
-    navigation.replace('ParentStatus', { consultationId: id });
+    navigation.replace("ParentStatus", { consultationId: id });
   };
 
   return (
@@ -30,7 +30,11 @@ export default function CategorySelectScreen({ navigation }: Props) {
       <Text style={styles.title}>どんな内容ですか？</Text>
       {CATEGORIES.map((c) => (
         <View key={c.key} style={{ marginBottom: space.md }}>
-          <BigButton label={c.label} emoji={c.emoji} onPress={() => onSelect(c.key)} />
+          <BigButton
+            label={c.label}
+            emoji={c.emoji}
+            onPress={() => onSelect(c.key)}
+          />
         </View>
       ))}
       <Text style={styles.note}>選ぶとすぐに相談が送られます</Text>
@@ -41,14 +45,14 @@ export default function CategorySelectScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   title: {
     fontSize: font.big,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     marginBottom: space.md,
   },
   note: {
     fontSize: font.small,
     color: colors.subtext,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: space.sm,
   },
 });

@@ -3,8 +3,14 @@
 // 1台のスマホで「親モード」「子モード」を切り替えれば、一往復の流れをテストできる。
 // 次の段階でこの中身を Supabase 呼び出しに差し替える（画面側は基本そのまま）。
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { Category, Consultation, Verdict } from '../types';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
+import { Category, Consultation, Verdict } from "../types";
 
 interface StoreValue {
   consultations: Consultation[];
@@ -23,55 +29,79 @@ function newId(): string {
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [consultations, setConsultations] = useState<Consultation[]>([]);
 
-  const createConsultation = useCallback((category: Category, photoUri?: string) => {
-    const id = newId();
-    const item: Consultation = {
-      id,
-      category,
-      photoUri,
-      status: 'waiting',
-      createdAt: Date.now(),
-    };
-    setConsultations((prev) => [item, ...prev]);
-    return id;
-  }, []);
+  const createConsultation = useCallback(
+    (category: Category, photoUri?: string) => {
+      const id = newId();
+      const item: Consultation = {
+        id,
+        category,
+        photoUri,
+        status: "waiting",
+        createdAt: Date.now(),
+      };
+      setConsultations((prev) => [item, ...prev]);
+      return id;
+    },
+    [],
+  );
 
   const replyToConsultation = useCallback(
     (id: string, verdict: Verdict, message: string) => {
       setConsultations((prev) =>
         prev.map((c) =>
           c.id === id
-            ? { ...c, status: 'answered', reply: { verdict, message, createdAt: Date.now() } }
-            : c
-        )
+            ? {
+                ...c,
+                status: "answered",
+                reply: { verdict, message, createdAt: Date.now() },
+              }
+            : c,
+        ),
       );
     },
-    []
+    [],
   );
 
   const markAnswerSeen = useCallback((id: string) => {
     setConsultations((prev) => {
       const target = prev.find((c) => c.id === id);
-      if (!target || target.status !== 'answered' || target.parentSeenAt) return prev; // 変化なし
-      return prev.map((c) => (c.id === id ? { ...c, parentSeenAt: Date.now() } : c));
+      if (!target || target.status !== "answered" || target.parentSeenAt)
+        return prev; // 変化なし
+      return prev.map((c) =>
+        c.id === id ? { ...c, parentSeenAt: Date.now() } : c,
+      );
     });
   }, []);
 
   const getConsultation = useCallback(
     (id: string) => consultations.find((c) => c.id === id),
-    [consultations]
+    [consultations],
   );
 
   const value = useMemo<StoreValue>(
-    () => ({ consultations, getConsultation, createConsultation, replyToConsultation, markAnswerSeen }),
-    [consultations, getConsultation, createConsultation, replyToConsultation, markAnswerSeen]
+    () => ({
+      consultations,
+      getConsultation,
+      createConsultation,
+      replyToConsultation,
+      markAnswerSeen,
+    }),
+    [
+      consultations,
+      getConsultation,
+      createConsultation,
+      replyToConsultation,
+      markAnswerSeen,
+    ],
   );
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+  );
 }
 
 export function useStore(): StoreValue {
   const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error('useStore は StoreProvider の中で使ってください');
+  if (!ctx) throw new Error("useStore は StoreProvider の中で使ってください");
   return ctx;
 }

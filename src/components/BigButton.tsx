@@ -1,8 +1,8 @@
 // 高齢者でも押しやすい大きなボタン。タップ領域と文字を大きく取る。
 
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, font, radius, space } from '../theme';
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, font, radius, space } from "../theme";
 
 interface Props {
   label: string;
@@ -13,7 +13,14 @@ interface Props {
   textColor?: string;
 }
 
-export default function BigButton({ label, onPress, emoji, sub, color, textColor }: Props) {
+export default function BigButton({
+  label,
+  onPress,
+  emoji,
+  sub,
+  color,
+  textColor,
+}: Props) {
   const bg = color ?? colors.surface;
   const fg = textColor ?? colors.text;
   return (
@@ -44,15 +51,15 @@ const styles = StyleSheet.create({
     paddingVertical: space.lg,
     paddingHorizontal: space.md,
     minHeight: 88,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   bordered: {
     borderWidth: 1,
     borderColor: colors.border,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   emoji: {
     fontSize: font.title,
@@ -63,7 +70,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: font.big,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   sub: {
     fontSize: font.small,
