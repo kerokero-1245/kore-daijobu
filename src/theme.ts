@@ -1,7 +1,7 @@
 // アプリ全体の見た目の基準値。
 // 高齢の親が使う画面なので「大きく・高コントラスト・少ない要素」を原則にする。
 
-import type { TextStyle } from "react-native";
+import type { TextStyle, ViewStyle } from "react-native";
 import type { Verdict } from "./types";
 
 export const colors = {
@@ -11,6 +11,7 @@ export const colors = {
   subtext: "#5C6169",
   primary: "#2E6BE6",
   primaryText: "#FFFFFF",
+  onColor: "#FFFFFF", // 判定の色など、色地の上に置く文字
   danger: "#CE2B1E", // 詐欺かも（赤）。淡い赤（dangerSoft）の地の上でも 4.6:1 以上
   dangerSoft: "#FDECEA", // 淡い赤。バッジの地
   safe: "#117B58", // 大丈夫（緑）。淡い緑（safeSoft）の地の上でも 4.6:1 以上
@@ -25,6 +26,15 @@ export const verdictColor: Record<Verdict, string> = {
   safe: colors.safe,
   unsure: colors.unsure,
 };
+
+// 判定の色を使うスタイル（見出しの文字色・カードの枠色）を 1 回で引く。
+export function verdictStyle(verdict: Verdict): {
+  text: { color: string };
+  border: { borderColor: string };
+} {
+  const color = verdictColor[verdict];
+  return { text: { color }, border: { borderColor: color } };
+}
 
 // 高齢者向けに全体的に大きめのフォント。
 export const font = {
@@ -57,6 +67,11 @@ export const textStyle = {
   // 大きい文字の太字（見出し・返信の文面）
   bigStrong: { fontSize: font.big, fontWeight: "700", color: colors.text },
 } satisfies Record<string, TextStyle>;
+
+// 横に並べて、縦は中央にそろえる（絵文字 + 文字の行など）。
+export const layout = {
+  centerRow: { flexDirection: "row", alignItems: "center" },
+} satisfies Record<string, ViewStyle>;
 
 // 押している間の不透明度。ボタン（BigButton）と、行・大ボタン・選択肢で別の値のまま。
 export const pressedOpacity = { button: 0.85, item: 0.9 };

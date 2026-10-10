@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import Screen from "../components/Screen";
 import BigButton from "../components/BigButton";
+import Spacer from "../components/Spacer";
 import { colors, font, lineHeight, space, textStyle } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoleSelect">;
@@ -25,11 +26,10 @@ export default function RoleSelectScreen({ navigation }: Props) {
           label="親モードで開く"
           emoji="👵"
           sub="相談を送る側（親のスマホ）"
-          color={colors.primary}
-          textColor={colors.primaryText}
+          variant="primary"
           onPress={() => navigation.navigate("ParentHome")}
         />
-        <View style={{ height: space.md }} />
+        <Spacer size="md" />
         <BigButton
           label="子モードで開く"
           emoji="🧑"

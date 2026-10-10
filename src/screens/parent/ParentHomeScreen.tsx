@@ -1,12 +1,12 @@
-import React, { useCallback, useRef } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useStore } from "../../data/store";
+import useOnce from "../../hooks/useOnce";
 import { CHILD_NAME } from "../../constants";
 import { categoryLabel } from "../../domain/category";
 import {
@@ -37,17 +37,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
 
   // 1 つ目の遷移が終わるまで 2 つ目を受け付けない（続けて押すと画面が積み重なるのを防ぐ）。
   // この画面に戻ってきたら、また押せるようにする。
-  const leaving = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      leaving.current = false;
-    }, []),
-  );
-  const go = (fn: () => void) => {
-    if (leaving.current) return;
-    leaving.current = true;
-    fn();
-  };
+  const once = useOnce({ resetOnFocus: true });
 
   const renderEntry = (c: Consultation) => {
     const { emoji, label } = entryLabel(c);
@@ -58,7 +48,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
           label={label}
           sub={`${categoryLabel(c.category)}・${formatTime(c.createdAt)}`}
           onPress={() =>
-            go(() =>
+            once(() =>
               navigation.navigate("ParentStatus", { consultationId: c.id }),
             )
           }
@@ -85,7 +75,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
             styles.bigButton,
             pressed && { opacity: pressedOpacity.item },
           ]}
-          onPress={() => go(() => navigation.navigate("CategorySelect"))}
+          onPress={() => once(() => navigation.navigate("CategorySelect"))}
           accessibilityRole="button"
           accessibilityLabel="これ大丈夫か相談する"
         >

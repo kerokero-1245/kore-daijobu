@@ -4,11 +4,13 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
-import BigButton from "../../components/BigButton";
+import HomeButton from "../../components/HomeButton";
+import Spacer from "../../components/Spacer";
 import { useStore } from "../../data/store";
 import { CHILD_NAME, VERDICT_META } from "../../constants";
 import { categoryLabel } from "../../domain/category";
 import { answeredReply, isUnseenAnswer } from "../../domain/consultation";
+import type { Reply } from "../../types";
 import {
   colors,
   font,
@@ -16,7 +18,7 @@ import {
   radius,
   space,
   textStyle,
-  verdictColor,
+  verdictStyle,
 } from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ParentStatus">;
@@ -38,18 +40,31 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
       <Screen>
         <View style={styles.center}>
           <Text style={styles.info}>相談が見つかりませんでした。</Text>
-          <BigButton
-            label="ホームにもどる"
-            color={colors.primary}
-            textColor={colors.primaryText}
-            onPress={goHome}
-          />
+          <HomeButton onPress={goHome} />
         </View>
       </Screen>
     );
   }
 
   const reply = answeredReply(consultation);
+
+  // 子の答え（判定の色の見出し・色の枠のカード）。判定の色は verdictStyle で 1 回だけ引く。
+  const renderReply = (r: Reply) => {
+    const tone = verdictStyle(r.verdict);
+    return (
+      <>
+        <Text style={[styles.headline, tone.text]}>
+          {VERDICT_META[r.verdict].headline}
+        </Text>
+        <View style={[styles.replyCard, tone.border]}>
+          <Text style={styles.replyMessage}>{r.message}</Text>
+          <Text style={styles.replyFrom}>{CHILD_NAME} さんより</Text>
+        </View>
+        <Spacer size="xl" />
+        <HomeButton onPress={goHome} />
+      </>
+    );
+  };
 
   // 長い返信でも見出しが隠れないよう、スクロールできる画面にする（内容が短いときは中央寄せ）。
   return (
@@ -60,29 +75,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
         </Text>
 
         {reply ? (
-          <>
-            <Text
-              style={[styles.headline, { color: verdictColor[reply.verdict] }]}
-            >
-              {VERDICT_META[reply.verdict].headline}
-            </Text>
-            <View
-              style={[
-                styles.replyCard,
-                { borderColor: verdictColor[reply.verdict] },
-              ]}
-            >
-              <Text style={styles.replyMessage}>{reply.message}</Text>
-              <Text style={styles.replyFrom}>{CHILD_NAME} さんより</Text>
-            </View>
-            <View style={{ height: space.xl }} />
-            <BigButton
-              label="ホームにもどる"
-              color={colors.primary}
-              textColor={colors.primaryText}
-              onPress={goHome}
-            />
-          </>
+          renderReply(reply)
         ) : (
           <>
             <ActivityIndicator
@@ -96,13 +89,8 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
             <Text style={styles.waitingSub}>
               返事が来るまで、相手には「ちょっと待ってね」と伝えて、電話は切って大丈夫です。
             </Text>
-            <View style={{ height: space.xl }} />
-            <BigButton
-              label="ホームにもどる"
-              color={colors.primary}
-              textColor={colors.primaryText}
-              onPress={goHome}
-            />
+            <Spacer size="xl" />
+            <HomeButton onPress={goHome} />
           </>
         )}
       </View>

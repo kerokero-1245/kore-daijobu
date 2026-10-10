@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   AccessibilityInfo,
   Platform,
@@ -13,22 +13,26 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
+import Emoji from "../../components/Emoji";
 import { useStore } from "../../data/store";
+import useOnce from "../../hooks/useOnce";
 import { REPLY_TEMPLATES, VERDICT_META, VERDICT_ORDER } from "../../constants";
 import { categoryEmoji, categoryLabel } from "../../domain/category";
 import { answeredReply } from "../../domain/consultation";
 import { freeReplyErrors, MAX_REPLY_LENGTH } from "../../domain/reply";
 import { formatTime } from "../../domain/time";
-import type { Verdict } from "../../types";
+import type { Reply, Verdict } from "../../types";
 import {
   colors,
   font,
+  layout,
   lineHeight,
   pressedOpacity,
   radius,
   space,
   textStyle,
   verdictColor,
+  verdictStyle,
 } from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ConsultationDetail">;
@@ -42,7 +46,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
   // 送れない状態で「送る」を押したら、理由を画面に出す。
   const [triedFree, setTriedFree] = useState(false);
   // 続けて押されても 1 回だけ送る（goBack が 2 回走らないように）。
-  const sending = useRef(false);
+  const once = useOnce();
 
   if (!consultation) {
     return (
@@ -53,10 +57,11 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
   }
 
   const send = (v: Verdict, message: string) => {
-    if (sending.current || !message.trim()) return;
-    sending.current = true;
-    replyToConsultation(consultation.id, v, message.trim());
-    navigation.goBack();
+    if (!message.trim()) return;
+    once(() => {
+      replyToConsultation(consultation.id, v, message.trim());
+      navigation.goBack();
+    });
   };
 
   const freeErrors = freeReplyErrors(text, verdict);
@@ -75,10 +80,26 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
 
   const reply = answeredReply(consultation);
 
+  // 子が送った返信（判定の色の枠と見出し）。判定の色は verdictStyle で 1 回だけ引く。
+  const renderReply = (r: Reply) => {
+    const tone = verdictStyle(r.verdict);
+    return (
+      <View style={[styles.replyCard, tone.border]}>
+        <Text style={[styles.replyHeadline, tone.text]}>
+          {VERDICT_META[r.verdict].headline}
+        </Text>
+        <Text style={styles.replyMessage}>{r.message}</Text>
+        <Text style={styles.replyNote}>
+          返信済み。親の画面にも表示されています。
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <Screen scroll>
       <View style={styles.header}>
-        <Text style={styles.emoji}>{categoryEmoji(consultation.category)}</Text>
+        <Emoji size="huge">{categoryEmoji(consultation.category)}</Emoji>
         <View>
           <Text style={styles.category}>
             {categoryLabel(consultation.category)}
@@ -88,25 +109,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
       </View>
 
       {reply ? (
-        <View
-          style={[
-            styles.replyCard,
-            { borderColor: verdictColor[reply.verdict] },
-          ]}
-        >
-          <Text
-            style={[
-              styles.replyHeadline,
-              { color: verdictColor[reply.verdict] },
-            ]}
-          >
-            {VERDICT_META[reply.verdict].headline}
-          </Text>
-          <Text style={styles.replyMessage}>{reply.message}</Text>
-          <Text style={styles.replyNote}>
-            返信済み。親の画面にも表示されています。
-          </Text>
-        </View>
+        renderReply(reply)
       ) : (
         <>
           <Text style={styles.sectionTitle}>返信する（タップで送信）</Text>
@@ -114,8 +117,8 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
             <View key={t.verdict} style={{ marginBottom: space.sm }}>
               <BigButton
                 label={t.message}
-                color={verdictColor[t.verdict]}
-                textColor="#FFFFFF"
+                variant="verdict"
+                verdict={t.verdict}
                 onPress={() => send(t.verdict, t.message)}
               />
             </View>
@@ -156,7 +159,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
                   <Text
                     style={[
                       styles.choiceText,
-                      { color: selected ? "#FFFFFF" : tint },
+                      { color: selected ? colors.onColor : tint },
                     ]}
                   >
                     {selected ? "● " : "○ "}
@@ -187,8 +190,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
 
           <BigButton
             label="この内容で送る"
-            color={colors.primary}
-            textColor="#FFFFFF"
+            variant="primary"
             onPress={sendFree}
           />
         </>
@@ -199,11 +201,9 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    ...layout.centerRow,
     marginBottom: space.lg,
   },
-  emoji: { fontSize: font.huge, marginRight: space.md },
   category: { ...textStyle.bigStrong },
   time: { ...textStyle.caption, marginTop: space.hair },
   info: { ...textStyle.body },

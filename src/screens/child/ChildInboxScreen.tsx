@@ -3,14 +3,16 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../../navigation/types";
+import Emoji from "../../components/Emoji";
 import Screen from "../../components/Screen";
+import Spacer from "../../components/Spacer";
+import StatusBadge, { STATUS_BADGE } from "../../components/StatusBadge";
 import { useStore } from "../../data/store";
 import { categoryEmoji, categoryLabel } from "../../domain/category";
-import { isAnswered } from "../../domain/consultation";
 import { formatTime } from "../../domain/time";
 import {
   colors,
-  font,
+  layout,
   lineHeight,
   pressedOpacity,
   radius,
@@ -42,7 +44,7 @@ export default function ChildInboxScreen({ navigation }: Props) {
         data={consultations}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingVertical: space.sm }}
-        ItemSeparatorComponent={() => <View style={{ height: space.sm }} />}
+        ItemSeparatorComponent={() => <Spacer size="sm" />}
         renderItem={({ item }) => (
           <Pressable
             style={({ pressed }) => [
@@ -56,33 +58,17 @@ export default function ChildInboxScreen({ navigation }: Props) {
             }
             accessibilityRole="button"
             accessibilityLabel={`${categoryLabel(item.category)}、${formatTime(item.createdAt)}、${
-              isAnswered(item) ? "返信済み" : "未対応"
+              STATUS_BADGE[item.status].label
             }`}
           >
-            <Text style={styles.emoji}>{categoryEmoji(item.category)}</Text>
+            <Emoji>{categoryEmoji(item.category)}</Emoji>
             <View style={{ flex: 1 }}>
               <Text style={styles.category}>
                 {categoryLabel(item.category)}
               </Text>
               <Text style={styles.time}>{formatTime(item.createdAt)}</Text>
             </View>
-            <View
-              style={[
-                styles.badge,
-                isAnswered(item) ? styles.badgeDone : styles.badgeWaiting,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.badgeText,
-                  isAnswered(item)
-                    ? styles.badgeTextDone
-                    : styles.badgeTextWaiting,
-                ]}
-              >
-                {isAnswered(item) ? "返信済み" : "未対応"}
-              </Text>
-            </View>
+            <StatusBadge status={item.status} />
           </Pressable>
         )}
       />
@@ -105,25 +91,13 @@ const styles = StyleSheet.create({
     lineHeight: lineHeight.body,
   },
   row: {
-    flexDirection: "row",
-    alignItems: "center",
+    ...layout.centerRow,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     padding: space.md,
   },
-  emoji: { fontSize: font.title, marginRight: space.md },
   category: { ...textStyle.bodyStrong },
   time: { ...textStyle.caption, marginTop: space.hair },
-  badge: {
-    borderRadius: radius.pill,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.tiny,
-  },
-  badgeWaiting: { backgroundColor: colors.dangerSoft },
-  badgeDone: { backgroundColor: colors.safeSoft },
-  badgeText: { fontSize: font.small, fontWeight: "700" },
-  badgeTextWaiting: { color: colors.danger },
-  badgeTextDone: { color: colors.safe },
 });

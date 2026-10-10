@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -8,6 +8,7 @@ import BigButton from "../../components/BigButton";
 import { CATEGORIES } from "../../domain/category";
 import type { Category } from "../../types";
 import { useStore } from "../../data/store";
+import useOnce from "../../hooks/useOnce";
 import { space, textStyle } from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CategorySelect">;
@@ -15,14 +16,14 @@ type Props = NativeStackScreenProps<RootStackParamList, "CategorySelect">;
 export default function CategorySelectScreen({ navigation }: Props) {
   const { createConsultation } = useStore();
   // 続けて押されても相談を 1 件だけ作る（画面が切り替わる前の 2 回目以降は無視）。
-  const submitting = useRef(false);
+  const once = useOnce();
 
   const onSelect = (category: Category) => {
-    if (submitting.current) return;
-    submitting.current = true;
-    const id = createConsultation(category);
-    // replace にして、答え画面から「戻る」でホームに戻れるようにする。
-    navigation.replace("ParentStatus", { consultationId: id });
+    once(() => {
+      const id = createConsultation(category);
+      // replace にして、答え画面から「戻る」でホームに戻れるようにする。
+      navigation.replace("ParentStatus", { consultationId: id });
+    });
   };
 
   return (

@@ -4,18 +4,23 @@
 //     枠線 border は背景に対して 3.1:1 以上（高齢の親が読める濃さ）
 //   - 行の高さが文字の大きさより大きいこと、文字の組（textStyle）が font と colors の値だけでできていること
 //   - 押している間の不透明度が 0〜1 の間にあること、space が小さい順に並んでいること
+//   - 色地の上に置く文字（onColor・primaryText）が、青地・判定の色地の上で読めること（4.5:1 以上）
+//   - verdictStyle が、判定の色を文字色と枠色の両方に同じ値で返すこと
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
   colors,
   font,
+  layout,
   lineHeight,
   pressedOpacity,
   radius,
   size,
   space,
   textStyle,
+  verdictColor,
+  verdictStyle,
 } from "../src/theme.ts";
 
 // WCAG のコントラスト比（相対輝度）。
@@ -96,4 +101,32 @@ test("space は小さい順に並び、radius・size・font はどれも正の�
   for (const group of [space, radius, size, font]) {
     for (const v of Object.values(group)) assert.ok(v > 0);
   }
+});
+
+test("色地の上の文字: primaryText は青地の上で、onColor は青地と判定の色地（danger・safe・unsure）の上で 4.5:1 以上", () => {
+  assert.ok(contrast(colors.primaryText, colors.primary) >= 4.5);
+  const verdicts = Object.keys(verdictColor);
+  assert.ok(verdicts.length > 0, "verdictColor が空");
+  assert.ok(contrast(colors.onColor, colors.primary) >= 4.5);
+  for (const v of verdicts) {
+    assert.ok(contrast(colors.onColor, verdictColor[v]) >= 4.5, v);
+  }
+});
+
+test("verdictStyle: 判定の色を、文字色（text）と枠色（border）の両方に同じ値で返す（動的に列挙・0 件なら失敗）", () => {
+  const verdicts = Object.keys(verdictColor);
+  assert.ok(verdicts.length > 0, "verdictColor が空");
+  for (const v of verdicts) {
+    assert.deepEqual(verdictStyle(v), {
+      text: { color: verdictColor[v] },
+      border: { borderColor: verdictColor[v] },
+    });
+  }
+});
+
+test("layout.centerRow は 横並び・縦は中央", () => {
+  assert.deepEqual(layout.centerRow, {
+    flexDirection: "row",
+    alignItems: "center",
+  });
 });
