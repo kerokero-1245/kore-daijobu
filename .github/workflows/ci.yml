@@ -36,3 +36,6 @@ jobs:
 
       - name: 型チェック
         run: npm run typecheck
+
+      - name: テスト
+        run: npm test

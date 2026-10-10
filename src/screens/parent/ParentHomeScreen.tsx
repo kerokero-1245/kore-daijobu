@@ -7,46 +7,25 @@ import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useStore } from "../../data/store";
-import { categoryLabel, CHILD_NAME } from "../../constants";
-import { Consultation } from "../../types";
+import { CHILD_NAME } from "../../constants";
+import { categoryLabel } from "../../domain/category";
+import {
+  entryLabel,
+  isUnseenAnswer,
+  pickEntries,
+} from "../../domain/consultation";
+import { formatTime } from "../../domain/time";
+import type { Consultation } from "../../types";
 import { colors, font, space } from "../../theme";
-import { formatTime } from "../../util";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ParentHome">;
-
-// 親ホームに出す相談の入口は最大 3 件。
-const MAX_ENTRIES = 3;
-
-// 並び順: 答えが届いて親がまだ開いていないもの → 返事待ち → 開いたことのある答え。同じ組の中は新しい順。
-function entryRank(c: Consultation): number {
-  if (c.status === "answered" && !c.parentSeenAt) return 0;
-  if (c.status === "waiting") return 1;
-  return 2;
-}
-
-function pickEntries(consultations: Consultation[]): Consultation[] {
-  return [...consultations]
-    .sort((a, b) => entryRank(a) - entryRank(b) || b.createdAt - a.createdAt)
-    .slice(0, MAX_ENTRIES);
-}
-
-function entryLabel(c: Consultation): { emoji: string; label: string } {
-  switch (entryRank(c)) {
-    case 0:
-      return { emoji: "📩", label: "答えが届きました" };
-    case 1:
-      return { emoji: "⏳", label: "返事を待っています" };
-    default:
-      return { emoji: "✔️", label: "確認ずみの答え" };
-  }
-}
 
 export default function ParentHomeScreen({ navigation }: Props) {
   const { consultations } = useStore();
   const entries = pickEntries(consultations);
   // まだ開いていない答えは、大ボタンより上に出して最初に目に入るようにする。
-  const unseen = entries.filter((c) => entryRank(c) === 0);
-  const others = entries.filter((c) => entryRank(c) !== 0);
+  const unseen = entries.filter(isUnseenAnswer);
+  const others = entries.filter((c) => !isUnseenAnswer(c));
 
   // 1 つ目の遷移が終わるまで 2 つ目を受け付けない（続けて押すと画面が積み重なるのを防ぐ）。
   // この画面に戻ってきたら、また押せるようにする。

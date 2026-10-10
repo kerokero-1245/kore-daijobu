@@ -5,9 +5,10 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import { useStore } from "../../data/store";
-import { categoryEmoji, categoryLabel } from "../../constants";
+import { categoryEmoji, categoryLabel } from "../../domain/category";
+import { isAnswered } from "../../domain/consultation";
+import { formatTime } from "../../domain/time";
 import { colors, font, radius, space } from "../../theme";
-import { formatTime } from "../../util";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChildInbox">;
 
@@ -44,7 +45,7 @@ export default function ChildInboxScreen({ navigation }: Props) {
             }
             accessibilityRole="button"
             accessibilityLabel={`${categoryLabel(item.category)}、${formatTime(item.createdAt)}、${
-              item.status === "answered" ? "返信済み" : "未対応"
+              isAnswered(item) ? "返信済み" : "未対応"
             }`}
           >
             <Text style={styles.emoji}>{categoryEmoji(item.category)}</Text>
@@ -57,20 +58,18 @@ export default function ChildInboxScreen({ navigation }: Props) {
             <View
               style={[
                 styles.badge,
-                item.status === "answered"
-                  ? styles.badgeDone
-                  : styles.badgeWaiting,
+                isAnswered(item) ? styles.badgeDone : styles.badgeWaiting,
               ]}
             >
               <Text
                 style={[
                   styles.badgeText,
-                  item.status === "answered"
+                  isAnswered(item)
                     ? styles.badgeTextDone
                     : styles.badgeTextWaiting,
                 ]}
               >
-                {item.status === "answered" ? "返信済み" : "未対応"}
+                {isAnswered(item) ? "返信済み" : "未対応"}
               </Text>
             </View>
           </Pressable>

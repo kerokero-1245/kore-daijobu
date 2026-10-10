@@ -10,7 +10,12 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Category, Consultation, Verdict } from "../types";
+import {
+  applyReply,
+  newConsultation,
+  recordAnswerSeen,
+} from "../domain/consultation";
+import type { Category, Consultation, Verdict } from "../types";
 
 interface StoreValue {
   consultations: Consultation[];
@@ -32,13 +37,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const createConsultation = useCallback(
     (category: Category, photoUri?: string) => {
       const id = newId();
-      const item: Consultation = {
-        id,
-        category,
-        photoUri,
-        status: "waiting",
-        createdAt: Date.now(),
-      };
+      const item = newConsultation(id, category, photoUri, Date.now());
       setConsultations((prev) => [item, ...prev]);
       return id;
     },
@@ -48,29 +47,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const replyToConsultation = useCallback(
     (id: string, verdict: Verdict, message: string) => {
       setConsultations((prev) =>
-        prev.map((c) =>
-          c.id === id
-            ? {
-                ...c,
-                status: "answered",
-                reply: { verdict, message, createdAt: Date.now() },
-              }
-            : c,
-        ),
+        applyReply(prev, id, verdict, message, Date.now()),
       );
     },
     [],
   );
 
   const markAnswerSeen = useCallback((id: string) => {
-    setConsultations((prev) => {
-      const target = prev.find((c) => c.id === id);
-      if (!target || target.status !== "answered" || target.parentSeenAt)
-        return prev; // 変化なし
-      return prev.map((c) =>
-        c.id === id ? { ...c, parentSeenAt: Date.now() } : c,
-      );
-    });
+    setConsultations((prev) => recordAnswerSeen(prev, id, Date.now()));
   }, []);
 
   const getConsultation = useCallback(

@@ -1,24 +1,7 @@
-import { Category, Verdict } from "./types";
+import type { Verdict } from "./types";
 
 // 相談相手（子）の表示名。仮の名前で、ペアリング実装で置き換える。
 export const CHILD_NAME = "たろう";
-
-// 親が選ぶ相談の種類（表示順）。
-export const CATEGORIES: { key: Category; label: string; emoji: string }[] = [
-  { key: "money", label: "お金の話", emoji: "💰" },
-  { key: "refund", label: "還付金・税金", emoji: "🏦" },
-  { key: "construction", label: "点検・工事・リフォーム", emoji: "🔧" },
-  { key: "impersonation", label: "家族や役所を名乗る電話", emoji: "📞" },
-  { key: "other", label: "その他", emoji: "❓" },
-];
-
-export function categoryLabel(key: Category): string {
-  return CATEGORIES.find((c) => c.key === key)?.label ?? "その他";
-}
-
-export function categoryEmoji(key: Category): string {
-  return CATEGORIES.find((c) => c.key === key)?.emoji ?? "❓";
-}
 
 // 子がタップで返信できる定型文。
 export const REPLY_TEMPLATES: { verdict: Verdict; message: string }[] = [

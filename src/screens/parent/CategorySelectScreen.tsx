@@ -5,8 +5,8 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
-import { CATEGORIES } from "../../constants";
-import { Category } from "../../types";
+import { CATEGORIES } from "../../domain/category";
+import type { Category } from "../../types";
 import { useStore } from "../../data/store";
 import { colors, font, space } from "../../theme";
 

@@ -15,20 +15,18 @@ import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useStore } from "../../data/store";
 import {
-  categoryEmoji,
-  categoryLabel,
   REPLY_TEMPLATES,
   VERDICT_CHOICES,
   VERDICT_HEADLINE,
 } from "../../constants";
-import { Verdict } from "../../types";
+import { categoryEmoji, categoryLabel } from "../../domain/category";
+import { answeredReply } from "../../domain/consultation";
+import { freeReplyErrors, MAX_REPLY_LENGTH } from "../../domain/reply";
+import { formatTime } from "../../domain/time";
+import type { Verdict } from "../../types";
 import { colors, font, radius, space, verdictColor } from "../../theme";
-import { formatTime } from "../../util";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ConsultationDetail">;
-
-// 自由入力の返信の上限。親の答えの画面で読み切れる長さに抑える。
-const MAX_REPLY_LENGTH = 200;
 
 export default function ConsultationDetailScreen({ navigation, route }: Props) {
   const { getConsultation, replyToConsultation } = useStore();
@@ -56,9 +54,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
     navigation.goBack();
   };
 
-  const freeErrors: string[] = [];
-  if (!text.trim()) freeErrors.push("返信の文面を入力してください");
-  if (!verdict) freeErrors.push("判定を選んでください");
+  const freeErrors = freeReplyErrors(text, verdict);
 
   const sendFree = () => {
     if (freeErrors.length > 0 || !verdict) {
@@ -72,8 +68,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
     send(verdict, text);
   };
 
-  const reply =
-    consultation.status === "answered" ? consultation.reply : undefined;
+  const reply = answeredReply(consultation);
 
   return (
     <Screen scroll>

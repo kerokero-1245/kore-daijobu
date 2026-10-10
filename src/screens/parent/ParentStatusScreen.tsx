@@ -6,7 +6,9 @@ import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useStore } from "../../data/store";
-import { categoryLabel, CHILD_NAME, VERDICT_HEADLINE } from "../../constants";
+import { CHILD_NAME, VERDICT_HEADLINE } from "../../constants";
+import { categoryLabel } from "../../domain/category";
+import { answeredReply, isUnseenAnswer } from "../../domain/consultation";
 import { colors, font, radius, space, verdictColor } from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ParentStatus">;
@@ -15,7 +17,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
   const { getConsultation, markAnswerSeen } = useStore();
   const consultation = getConsultation(route.params.consultationId);
   const answeredUnseen =
-    consultation?.status === "answered" && !consultation.parentSeenAt;
+    consultation !== undefined && isUnseenAnswer(consultation);
   // 答えが表示されたら「親が開いた」と記録する（親ホームの並び順に使う）。
   useEffect(() => {
     if (answeredUnseen) markAnswerSeen(route.params.consultationId);
@@ -39,8 +41,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
     );
   }
 
-  const reply =
-    consultation.status === "answered" ? consultation.reply : undefined;
+  const reply = answeredReply(consultation);
 
   // 長い返信でも見出しが隠れないよう、スクロールできる画面にする（内容が短いときは中央寄せ）。
   return (
