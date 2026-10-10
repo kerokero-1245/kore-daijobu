@@ -30,7 +30,7 @@ export function isUnseenAnswer(c: Consultation): boolean {
 }
 
 // 親ホームに出す入口の種類。
-export type EntryKind = "unseenAnswer" | "waiting" | "seenAnswer";
+type EntryKind = "unseenAnswer" | "waiting" | "seenAnswer";
 
 // 親ホームでの並び順（小さいほど先）: 答えが届いて親がまだ開いていないもの → 返事待ち → 開いたことのある答え。
 const ENTRY_RANK: Record<EntryKind, number> = {
