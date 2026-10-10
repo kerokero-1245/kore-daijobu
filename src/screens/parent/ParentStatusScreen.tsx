@@ -9,7 +9,15 @@ import { useStore } from "../../data/store";
 import { CHILD_NAME, VERDICT_META } from "../../constants";
 import { categoryLabel } from "../../domain/category";
 import { answeredReply, isUnseenAnswer } from "../../domain/consultation";
-import { colors, font, radius, space, verdictColor } from "../../theme";
+import {
+  colors,
+  font,
+  lineHeight,
+  radius,
+  space,
+  textStyle,
+  verdictColor,
+} from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ParentStatus">;
 
@@ -105,13 +113,11 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   category: {
-    fontSize: font.body,
-    color: colors.subtext,
+    ...textStyle.bodySub,
     marginBottom: space.md,
   },
   info: {
-    fontSize: font.body,
-    color: colors.text,
+    ...textStyle.body,
     marginBottom: space.lg,
     textAlign: "center",
   },
@@ -131,15 +137,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   replyMessage: {
-    fontSize: font.big,
-    fontWeight: "700",
-    color: colors.text,
+    ...textStyle.bigStrong,
     textAlign: "center",
-    lineHeight: 34,
+    lineHeight: lineHeight.big,
   },
   replyFrom: {
-    fontSize: font.small,
-    color: colors.subtext,
+    ...textStyle.caption,
     marginTop: space.md,
   },
   waiting: {
@@ -147,13 +150,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.text,
     textAlign: "center",
-    lineHeight: 42,
+    lineHeight: lineHeight.title,
   },
   waitingSub: {
-    fontSize: font.body,
-    color: colors.subtext,
+    ...textStyle.bodySub,
     textAlign: "center",
     marginTop: space.lg,
-    lineHeight: 30,
+    lineHeight: lineHeight.body,
   },
 });

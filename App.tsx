@@ -5,7 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { StoreProvider } from "./src/data/store";
 import { RootStackParamList } from "./src/navigation/types";
-import { colors, font } from "./src/theme";
+import { colors, textStyle } from "./src/theme";
 import RoleSelectScreen from "./src/screens/RoleSelectScreen";
 import ParentHomeScreen from "./src/screens/parent/ParentHomeScreen";
 import CategorySelectScreen from "./src/screens/parent/CategorySelectScreen";
@@ -24,11 +24,7 @@ export default function App() {
             initialRouteName="RoleSelect"
             screenOptions={{
               headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: {
-                fontSize: font.body,
-                fontWeight: "700",
-                color: colors.text,
-              },
+              headerTitleStyle: textStyle.bodyStrong,
               headerTintColor: colors.primary,
               contentStyle: { backgroundColor: colors.bg },
             }}

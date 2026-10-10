@@ -20,7 +20,16 @@ import { answeredReply } from "../../domain/consultation";
 import { freeReplyErrors, MAX_REPLY_LENGTH } from "../../domain/reply";
 import { formatTime } from "../../domain/time";
 import type { Verdict } from "../../types";
-import { colors, font, radius, space, verdictColor } from "../../theme";
+import {
+  colors,
+  font,
+  lineHeight,
+  pressedOpacity,
+  radius,
+  space,
+  textStyle,
+  verdictColor,
+} from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ConsultationDetail">;
 
@@ -141,7 +150,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
                     styles.choice,
                     { borderColor: selected ? tint : colors.border },
                     selected && { backgroundColor: tint },
-                    pressed && { opacity: 0.9 },
+                    pressed && { opacity: pressedOpacity.item },
                   ]}
                 >
                   <Text
@@ -195,18 +204,15 @@ const styles = StyleSheet.create({
     marginBottom: space.lg,
   },
   emoji: { fontSize: font.huge, marginRight: space.md },
-  category: { fontSize: font.big, fontWeight: "700", color: colors.text },
-  time: { fontSize: font.small, color: colors.subtext, marginTop: 2 },
-  info: { fontSize: font.body, color: colors.text },
+  category: { ...textStyle.bigStrong },
+  time: { ...textStyle.caption, marginTop: space.hair },
+  info: { ...textStyle.body },
   sectionTitle: {
-    fontSize: font.body,
-    fontWeight: "700",
-    color: colors.text,
+    ...textStyle.bodyStrong,
     marginBottom: space.md,
   },
   orText: {
-    fontSize: font.small,
-    color: colors.subtext,
+    ...textStyle.caption,
     marginTop: space.lg,
     marginBottom: space.sm,
   },
@@ -216,15 +222,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: space.md,
-    fontSize: font.body,
-    color: colors.text,
+    ...textStyle.body,
     minHeight: 96,
     textAlignVertical: "top",
     marginBottom: space.md,
   },
   choiceTitle: {
-    fontSize: font.small,
-    color: colors.subtext,
+    ...textStyle.caption,
     marginBottom: space.sm,
   },
   choice: {
@@ -240,8 +244,7 @@ const styles = StyleSheet.create({
   choiceText: { fontSize: font.body, fontWeight: "700" },
   errors: { marginTop: space.xs, marginBottom: space.md },
   errorText: {
-    fontSize: font.body,
-    fontWeight: "700",
+    ...textStyle.bodyStrong,
     color: colors.danger,
     marginTop: space.xs,
   },
@@ -259,14 +262,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   replyMessage: {
-    fontSize: font.body,
-    color: colors.text,
+    ...textStyle.body,
     textAlign: "center",
-    lineHeight: 30,
+    lineHeight: lineHeight.body,
   },
   replyNote: {
-    fontSize: font.small,
-    color: colors.subtext,
+    ...textStyle.caption,
     marginTop: space.md,
   },
 });

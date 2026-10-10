@@ -8,7 +8,7 @@ import BigButton from "../../components/BigButton";
 import { CATEGORIES } from "../../domain/category";
 import type { Category } from "../../types";
 import { useStore } from "../../data/store";
-import { colors, font, space } from "../../theme";
+import { space, textStyle } from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CategorySelect">;
 
@@ -44,14 +44,11 @@ export default function CategorySelectScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   title: {
-    fontSize: font.big,
-    fontWeight: "700",
-    color: colors.text,
+    ...textStyle.bigStrong,
     marginBottom: space.md,
   },
   note: {
-    fontSize: font.small,
-    color: colors.subtext,
+    ...textStyle.caption,
     textAlign: "center",
     marginTop: space.sm,
   },

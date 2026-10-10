@@ -16,7 +16,15 @@ import {
 } from "../../domain/consultation";
 import { formatTime } from "../../domain/time";
 import type { Consultation } from "../../types";
-import { colors, font, space } from "../../theme";
+import {
+  colors,
+  font,
+  lineHeight,
+  pressedOpacity,
+  size,
+  space,
+  textStyle,
+} from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ParentHome">;
 
@@ -75,7 +83,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
         <Pressable
           style={({ pressed }) => [
             styles.bigButton,
-            pressed && { opacity: 0.9 },
+            pressed && { opacity: pressedOpacity.item },
           ]}
           onPress={() => go(() => navigation.navigate("CategorySelect"))}
           accessibilityRole="button"
@@ -103,15 +111,14 @@ export default function ParentHomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   wrap: { flex: 1, justifyContent: "center", alignItems: "center" },
   lead: {
-    fontSize: font.body,
-    color: colors.text,
+    ...textStyle.body,
     marginBottom: space.xl,
     textAlign: "center",
   },
   bigButton: {
-    width: 260,
-    height: 260,
-    borderRadius: 130,
+    width: size.bigButton,
+    height: size.bigButton,
+    borderRadius: size.bigButton / 2,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
@@ -121,7 +128,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-  bigButtonEmoji: { fontSize: 64, marginBottom: space.sm },
+  bigButtonEmoji: { fontSize: font.hero, marginBottom: space.sm },
   bigButtonText: {
     fontSize: font.title,
     fontWeight: "800",
@@ -129,18 +136,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   sub: {
-    fontSize: font.body,
-    color: colors.subtext,
+    ...textStyle.bodySub,
     marginTop: space.xl,
     textAlign: "center",
-    lineHeight: 30,
+    lineHeight: lineHeight.body,
   },
   unseen: { marginBottom: space.lg },
   others: { marginTop: space.lg },
   sectionTitle: {
-    fontSize: font.body,
-    fontWeight: "700",
-    color: colors.text,
+    ...textStyle.bodyStrong,
     marginBottom: space.sm,
   },
   entry: { marginBottom: space.sm },

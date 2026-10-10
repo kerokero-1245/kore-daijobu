@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, font, radius, space } from "../theme";
+import { colors, font, pressedOpacity, radius, space } from "../theme";
 
 interface Props {
   label: string;
@@ -28,7 +28,7 @@ export default function BigButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: bg, opacity: pressed ? 0.85 : 1 },
+        { backgroundColor: bg, opacity: pressed ? pressedOpacity.button : 1 },
         !color && styles.bordered,
       ]}
       accessibilityRole="button"
@@ -74,6 +74,6 @@ const styles = StyleSheet.create({
   },
   sub: {
     fontSize: font.small,
-    marginTop: 4,
+    marginTop: space.tiny,
   },
 });

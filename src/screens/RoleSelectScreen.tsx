@@ -5,7 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/types";
 import Screen from "../components/Screen";
 import BigButton from "../components/BigButton";
-import { colors, font, space } from "../theme";
+import { colors, font, lineHeight, space, textStyle } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoleSelect">;
 
@@ -50,11 +50,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   note: {
-    fontSize: font.small,
-    color: colors.subtext,
+    ...textStyle.caption,
     marginTop: space.md,
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: lineHeight.small,
   },
   buttons: { marginTop: space.lg },
 });

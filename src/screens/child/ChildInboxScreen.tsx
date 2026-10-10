@@ -8,7 +8,15 @@ import { useStore } from "../../data/store";
 import { categoryEmoji, categoryLabel } from "../../domain/category";
 import { isAnswered } from "../../domain/consultation";
 import { formatTime } from "../../domain/time";
-import { colors, font, radius, space } from "../../theme";
+import {
+  colors,
+  font,
+  lineHeight,
+  pressedOpacity,
+  radius,
+  space,
+  textStyle,
+} from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChildInbox">;
 
@@ -37,7 +45,10 @@ export default function ChildInboxScreen({ navigation }: Props) {
         ItemSeparatorComponent={() => <View style={{ height: space.sm }} />}
         renderItem={({ item }) => (
           <Pressable
-            style={({ pressed }) => [styles.row, pressed && { opacity: 0.9 }]}
+            style={({ pressed }) => [
+              styles.row,
+              pressed && { opacity: pressedOpacity.item },
+            ]}
             onPress={() =>
               navigation.navigate("ConsultationDetail", {
                 consultationId: item.id,
@@ -86,13 +97,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: space.lg,
   },
-  emptyText: { fontSize: font.big, fontWeight: "700", color: colors.text },
+  emptyText: { ...textStyle.bigStrong },
   emptySub: {
-    fontSize: font.body,
-    color: colors.subtext,
+    ...textStyle.bodySub,
     marginTop: space.md,
     textAlign: "center",
-    lineHeight: 30,
+    lineHeight: lineHeight.body,
   },
   row: {
     flexDirection: "row",
@@ -104,11 +114,15 @@ const styles = StyleSheet.create({
     padding: space.md,
   },
   emoji: { fontSize: font.title, marginRight: space.md },
-  category: { fontSize: font.body, fontWeight: "700", color: colors.text },
-  time: { fontSize: font.small, color: colors.subtext, marginTop: 2 },
-  badge: { borderRadius: 999, paddingHorizontal: space.sm, paddingVertical: 4 },
-  badgeWaiting: { backgroundColor: "#FDECEA" },
-  badgeDone: { backgroundColor: "#E7F4EF" },
+  category: { ...textStyle.bodyStrong },
+  time: { ...textStyle.caption, marginTop: space.hair },
+  badge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.tiny,
+  },
+  badgeWaiting: { backgroundColor: colors.dangerSoft },
+  badgeDone: { backgroundColor: colors.safeSoft },
   badgeText: { fontSize: font.small, fontWeight: "700" },
   badgeTextWaiting: { color: colors.danger },
   badgeTextDone: { color: colors.safe },
