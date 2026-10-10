@@ -20,14 +20,25 @@ export interface Reply {
   createdAt: number; // epoch ms
 }
 
-export type ConsultationStatus = "waiting" | "answered";
-
-export interface Consultation {
+interface ConsultationBase {
   id: string;
   category: Category;
   photoUri?: string; // 任意で添付した写真（ローカルURI）。MVP後半で実装。
-  status: ConsultationStatus;
   createdAt: number; // epoch ms
-  reply?: Reply;
   parentSeenAt?: number; // 親が答えの画面を開いた時刻 (epoch ms)。未読の答えを先に出すのに使う
 }
+
+// 返事待ち。reply は無い。
+export interface WaitingConsultation extends ConsultationBase {
+  status: "waiting";
+}
+
+// 子が答えた。reply が必ずある。
+export interface AnsweredConsultation extends ConsultationBase {
+  status: "answered";
+  reply: Reply;
+}
+
+// status で reply の有無が決まる判別共用体。
+// 「返事待ちなのに reply がある」「答え済みなのに reply が無い」を型の上で作れなくする。
+export type Consultation = WaitingConsultation | AnsweredConsultation;

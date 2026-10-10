@@ -10,16 +10,16 @@ export const REPLY_TEMPLATES: { verdict: Verdict; message: string }[] = [
   { verdict: "safe", message: "大丈夫、それは本物だよ" },
 ];
 
-// 自由入力で返信するとき、子が選ぶ判定の名前（表示順）。
-export const VERDICT_CHOICES: { verdict: Verdict; label: string }[] = [
-  { verdict: "danger", label: "詐欺かも" },
-  { verdict: "safe", label: "大丈夫そう" },
-  { verdict: "unsure", label: "まだ分からない" },
-];
-
-// 判定ごとの見出し（親の答え画面で使う）。
-export const VERDICT_HEADLINE: Record<Verdict, string> = {
-  danger: "⚠️ 詐欺かもしれません",
-  unsure: "🟡 いったん待って",
-  safe: "✅ 大丈夫そうです",
+// 判定ごとの表示情報（1 か所）。Record なので、判定を足したときの書き漏れを型が検出する。
+// 色は theme.ts の verdictColor が持つ。
+export const VERDICT_META: Record<
+  Verdict,
+  { label: string; headline: string }
+> = {
+  danger: { label: "詐欺かも", headline: "⚠️ 詐欺かもしれません" },
+  safe: { label: "大丈夫そう", headline: "✅ 大丈夫そうです" },
+  unsure: { label: "まだ分からない", headline: "🟡 いったん待って" },
 };
+
+// 自由入力で返信するとき、子が選ぶ判定の表示順。
+export const VERDICT_ORDER: Verdict[] = ["danger", "safe", "unsure"];

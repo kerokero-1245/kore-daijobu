@@ -1,6 +1,8 @@
 // アプリ全体の見た目の基準値。
 // 高齢の親が使う画面なので「大きく・高コントラスト・少ない要素」を原則にする。
 
+import type { Verdict } from "./types";
+
 export const colors = {
   bg: "#F5F6F8",
   surface: "#FFFFFF",
@@ -15,7 +17,7 @@ export const colors = {
 };
 
 // 判定（verdict）ごとの色。返信の色分けに使う。
-export const verdictColor: Record<"danger" | "safe" | "unsure", string> = {
+export const verdictColor: Record<Verdict, string> = {
   danger: colors.danger,
   safe: colors.safe,
   unsure: colors.unsure,

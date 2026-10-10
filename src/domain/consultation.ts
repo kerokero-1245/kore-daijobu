@@ -2,19 +2,26 @@
 // 純関数だけを置く。React・React Native・画面に依存せず、型は import type だけで読むので、
 // Node から直接読んでテストできる（tests/）。Supabase に移したあとも、サーバ側の検査と同じ規則を共有する場所にする。
 
-import type { Category, Consultation, Reply, Verdict } from "../types";
+import type {
+  AnsweredConsultation,
+  Category,
+  Consultation,
+  Reply,
+  Verdict,
+  WaitingConsultation,
+} from "../types";
 
 // 親ホームに出す相談の入口は最大 3 件。
 export const MAX_ENTRIES = 3;
 
-// 子が答えた（返信が付いている）相談か。
-export function isAnswered(c: Consultation): boolean {
+// 子が答えた（返信が付いている）相談か。true のとき型の上でも reply を取り出せる。
+export function isAnswered(c: Consultation): c is AnsweredConsultation {
   return c.status === "answered";
 }
 
 // 返信が付いていればその返信、返事待ちなら undefined。
 export function answeredReply(c: Consultation): Reply | undefined {
-  return c.status === "answered" ? c.reply : undefined;
+  return isAnswered(c) ? c.reply : undefined;
 }
 
 // 答えが届いて、親がまだ開いていない相談か。
@@ -34,8 +41,7 @@ const ENTRY_RANK: Record<EntryKind, number> = {
 
 export function entryKind(c: Consultation): EntryKind {
   if (isUnseenAnswer(c)) return "unseenAnswer";
-  if (c.status === "waiting") return "waiting";
-  return "seenAnswer";
+  return isAnswered(c) ? "seenAnswer" : "waiting";
 }
 
 export function entryRank(c: Consultation): number {
@@ -67,7 +73,7 @@ export function newConsultation(
   category: Category,
   photoUri: string | undefined,
   now: number,
-): Consultation {
+): WaitingConsultation {
   return { id, category, photoUri, status: "waiting", createdAt: now };
 }
 

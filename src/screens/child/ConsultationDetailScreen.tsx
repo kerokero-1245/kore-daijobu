@@ -14,11 +14,7 @@ import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useStore } from "../../data/store";
-import {
-  REPLY_TEMPLATES,
-  VERDICT_CHOICES,
-  VERDICT_HEADLINE,
-} from "../../constants";
+import { REPLY_TEMPLATES, VERDICT_META, VERDICT_ORDER } from "../../constants";
 import { categoryEmoji, categoryLabel } from "../../domain/category";
 import { answeredReply } from "../../domain/consultation";
 import { freeReplyErrors, MAX_REPLY_LENGTH } from "../../domain/reply";
@@ -95,7 +91,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
               { color: verdictColor[reply.verdict] },
             ]}
           >
-            {VERDICT_HEADLINE[reply.verdict]}
+            {VERDICT_META[reply.verdict].headline}
           </Text>
           <Text style={styles.replyMessage}>{reply.message}</Text>
           <Text style={styles.replyNote}>
@@ -130,15 +126,16 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
           />
           <Text style={styles.choiceTitle}>判定を選ぶ</Text>
           <View accessibilityRole="radiogroup" accessibilityLabel="判定">
-            {VERDICT_CHOICES.map((c) => {
-              const selected = verdict === c.verdict;
-              const tint = verdictColor[c.verdict];
+            {VERDICT_ORDER.map((v) => {
+              const selected = verdict === v;
+              const tint = verdictColor[v];
+              const { label } = VERDICT_META[v];
               return (
                 <Pressable
-                  key={c.verdict}
-                  onPress={() => setVerdict(c.verdict)}
+                  key={v}
+                  onPress={() => setVerdict(v)}
                   accessibilityRole="radio"
-                  accessibilityLabel={c.label}
+                  accessibilityLabel={label}
                   aria-checked={selected}
                   style={({ pressed }) => [
                     styles.choice,
@@ -154,7 +151,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
                     ]}
                   >
                     {selected ? "● " : "○ "}
-                    {c.label}
+                    {label}
                   </Text>
                 </Pressable>
               );

@@ -3,19 +3,33 @@
 
 import type { Category } from "../types";
 
-// 親が選ぶ相談の種類（表示順）。
-export const CATEGORIES: { key: Category; label: string; emoji: string }[] = [
-  { key: "money", label: "お金の話", emoji: "💰" },
-  { key: "refund", label: "還付金・税金", emoji: "🏦" },
-  { key: "construction", label: "点検・工事・リフォーム", emoji: "🔧" },
-  { key: "impersonation", label: "家族や役所を名乗る電話", emoji: "📞" },
-  { key: "other", label: "その他", emoji: "❓" },
+// 種類ごとの表示情報（1 か所）。Record なので、種類を足したときの書き漏れを型が検出する。
+export const CATEGORY_META: Record<Category, { label: string; emoji: string }> =
+  {
+    money: { label: "お金の話", emoji: "💰" },
+    refund: { label: "還付金・税金", emoji: "🏦" },
+    construction: { label: "点検・工事・リフォーム", emoji: "🔧" },
+    impersonation: { label: "家族や役所を名乗る電話", emoji: "📞" },
+    other: { label: "その他", emoji: "❓" },
+  };
+
+// 親が選ぶ相談の種類の表示順。
+export const CATEGORY_ORDER: Category[] = [
+  "money",
+  "refund",
+  "construction",
+  "impersonation",
+  "other",
 ];
 
+// 親が選ぶ相談の種類（表示順）。
+export const CATEGORIES: { key: Category; label: string; emoji: string }[] =
+  CATEGORY_ORDER.map((key) => ({ key, ...CATEGORY_META[key] }));
+
 export function categoryLabel(key: Category): string {
-  return CATEGORIES.find((c) => c.key === key)?.label ?? "その他";
+  return CATEGORY_META[key].label;
 }
 
 export function categoryEmoji(key: Category): string {
-  return CATEGORIES.find((c) => c.key === key)?.emoji ?? "❓";
+  return CATEGORY_META[key].emoji;
 }

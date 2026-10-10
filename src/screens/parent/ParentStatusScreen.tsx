@@ -6,7 +6,7 @@ import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useStore } from "../../data/store";
-import { CHILD_NAME, VERDICT_HEADLINE } from "../../constants";
+import { CHILD_NAME, VERDICT_META } from "../../constants";
 import { categoryLabel } from "../../domain/category";
 import { answeredReply, isUnseenAnswer } from "../../domain/consultation";
 import { colors, font, radius, space, verdictColor } from "../../theme";
@@ -56,7 +56,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
             <Text
               style={[styles.headline, { color: verdictColor[reply.verdict] }]}
             >
-              {VERDICT_HEADLINE[reply.verdict]}
+              {VERDICT_META[reply.verdict].headline}
             </Text>
             <View
               style={[
