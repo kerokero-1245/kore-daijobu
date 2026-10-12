@@ -7,6 +7,7 @@
 
 - 設計: [docs/DESIGN.md](docs/DESIGN.md)
 - 技術: Expo (React Native + TypeScript) / 予定: Supabase + Expo Push
+- 作り方の規則と、この repo で違うこと: [docs/DESIGN.md](docs/DESIGN.md#この-repo-での適用)
 
 ## いまの状態（MVP骨組み）
 
@@ -17,7 +18,7 @@
 
 ## 動かし方
 
-Node は react-native 0.86 の `engines` に合わせ、20.19.4 以上の 20 系、22.13.0 以上の 22 系、24.3.0 以上の 24 系、または 25 以上（`.nvmrc` は 22.23.3）。
+Node は `.nvmrc` の版（24 系）を使う。react-native 0.86 の `engines` は 24 系なら 24.3.0 以上を求める。
 
 ```sh
 nvm use            # .nvmrc の Node に切り替え（未導入なら nvm install）
@@ -25,7 +26,7 @@ npm install        # 初回のみ
 npm start          # Expo 開発サーバーを起動
 ```
 
-型チェックは `npm run typecheck`。main への push と pull request では、GitHub Actions（`.github/workflows/ci.yml`）が同じ型チェックを走らせます。
+整形の検査は `npm run format:check`、lint は `npm run lint`（eslint + eslint-config-expo）、型チェックは `npm run typecheck`、テストは `npm test`。main への push と pull request では、GitHub Actions（`.github/workflows/ci.yml`）がこの 4 つを順に走らせます。
 
 起動後、ターミナルに QR コードが出ます。
 
