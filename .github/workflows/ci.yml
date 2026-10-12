@@ -1,5 +1,5 @@
-# main への push と pull request ごとに依存を入れ直し、TypeScript の型チェックを通す
-name: CI（型チェック）
+# main への push と pull request ごとに依存を入れ直し、整形・lint・型チェック・テストを通す
+name: CI（整形・lint・型・テスト）
 
 on:
   push:
