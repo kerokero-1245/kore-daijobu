@@ -26,10 +26,15 @@ export const CATEGORY_ORDER: Category[] = [
 export const CATEGORIES: { key: Category; label: string; emoji: string }[] =
   CATEGORY_ORDER.map((key) => ({ key, ...CATEGORY_META[key] }));
 
+// 表に無い値は other に寄せる（新しい種類を古いアプリが受けたとき落とさない）。
+function metaOf(key: Category): { label: string; emoji: string } {
+  return CATEGORY_META[key] ?? CATEGORY_META.other;
+}
+
 export function categoryLabel(key: Category): string {
-  return CATEGORY_META[key].label;
+  return metaOf(key).label;
 }
 
 export function categoryEmoji(key: Category): string {
-  return CATEGORY_META[key].emoji;
+  return metaOf(key).emoji;
 }

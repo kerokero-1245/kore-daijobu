@@ -57,3 +57,11 @@ test("種類ごとに期待どおりのラベルと絵文字を返す", () => {
     assert.equal(categoryEmoji(key), emoji);
   }
 });
+
+// 新しい種類を古いアプリが受けたとき（表に無い値）、画面が落ちずに「その他」の表示になること。
+test("知らない種類は other の表示（その他・❓）に寄せる", () => {
+  assert.equal(categoryLabel("unknown"), CATEGORY_META.other.label);
+  assert.equal(categoryEmoji("unknown"), CATEGORY_META.other.emoji);
+  assert.equal(categoryLabel("unknown"), "その他");
+  assert.equal(categoryEmoji("unknown"), "❓");
+});
