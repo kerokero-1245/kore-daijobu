@@ -90,6 +90,12 @@ export class SupabaseBackend implements Backend {
   }
 
   async signOut(): Promise<void> {
+    // push_tokens は token が主キーで、自分の行しか書けない（RLS）。前の利用者の行が残ると、
+    // 同じ端末で次に入った利用者がトークンを保存できないので、サインアウトの前に外す。
+    // 外せなくてもサインアウトは止めない（通知は補助の経路）。
+    if (this.#uid) {
+      await this.#client.from("push_tokens").delete().eq("user_id", this.#uid);
+    }
     const { error } = await this.#client.auth.signOut();
     if (error) fail("signOut", error);
     this.#uid = null;
@@ -222,6 +228,16 @@ export class SupabaseBackend implements Backend {
       .update({ parent_seen_at: new Date().toISOString() })
       .eq("id", id);
     if (error) fail("consultations", error);
+  }
+
+  async upsertPushToken(token: string): Promise<void> {
+    const { error } = await this.#client
+      .from("push_tokens")
+      .upsert(
+        { token, user_id: this.#me(), disabled_at: null },
+        { onConflict: "token" },
+      );
+    if (error) fail("push_tokens", error);
   }
 
   subscribePair(pairId: string, onChange: (e: PairChange) => void): () => void {

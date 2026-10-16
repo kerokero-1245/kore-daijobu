@@ -32,6 +32,7 @@ export interface Backend {
   // 保存したセッションが読めないときは、新しい利用者を作らずに失敗する（Supabase 版）。
   signIn(): Promise<string>;
   // サインアウトする（開発用の「最初からやり直す」と「つなぎ直す」）。次の signIn は新しい匿名ユーザーになる。
+  // 先に自分の通知のトークンを外す（同じ端末の同じトークンを、次の利用者が保存できるように）。
   signOut(): Promise<void>;
   getRole(): Promise<Role | null>;
   // 役割を決める（profiles に 1 回だけ作る。あとから変えられない）。
@@ -52,6 +53,8 @@ export interface Backend {
   markSeen(id: string): Promise<void>;
   // ペアの相談とペアの状態の変化を購読する。返り値で購読をやめる。
   subscribePair(pairId: string, onChange: (e: PairChange) => void): () => void;
+  // この端末の Expo の通知のトークンを自分のものとして保存する（token が主キー。disabled_at は null に戻す）。
+  upsertPushToken(token: string): Promise<void>;
 }
 
 // 最近の相談として取り直す件数。

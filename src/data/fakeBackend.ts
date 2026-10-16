@@ -208,6 +208,8 @@ export class FakeBackend implements Backend {
   #now: () => number;
   #randomInt: (max: number) => number;
   #localListeners = new Set<() => void>();
+  // 通知のトークン → 持ち主の uid。送る側が無いので、この端末のメモリに置くだけ。
+  #pushTokens = new Map<string, string>();
 
   constructor(options: FakeBackendOptions) {
     this.#storage = options.storage;
@@ -277,6 +279,9 @@ export class FakeBackend implements Backend {
   }
 
   async signOut(): Promise<void> {
+    const uid = this.#storage.readSession();
+    for (const [token, owner] of this.#pushTokens)
+      if (owner === uid) this.#pushTokens.delete(token);
     this.#storage.writeSession(null);
   }
 
@@ -491,6 +496,17 @@ export class FakeBackend implements Backend {
       return;
     c.parent_seen_at = this.#iso();
     this.#write(db);
+  }
+
+  // ---- 通知のトークン ----
+
+  async upsertPushToken(token: string): Promise<void> {
+    this.#pushTokens.set(token, this.#uid());
+  }
+
+  // テスト用: 保存されているトークンとその持ち主。
+  pushTokens(): ReadonlyMap<string, string> {
+    return new Map(this.#pushTokens);
   }
 
   // ---- 購読 ----

@@ -1,9 +1,14 @@
 import { StatusBar } from "expo-status-bar";
-import { NavigationContainer } from "@react-navigation/native";
+import {
+  createNavigationContainerRef,
+  NavigationContainer,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { APP_NAME } from "./src/constants";
+import { backend } from "./src/data/backendInstance";
+import { usePushNotifications } from "./src/data/pushTokens";
 import { SessionProvider, useSession } from "./src/data/session";
 import { StoreProvider } from "./src/data/store";
 import { RootStackParamList } from "./src/navigation/types";
@@ -17,8 +22,29 @@ import CategorySelectScreen from "./src/screens/parent/CategorySelectScreen";
 import ParentStatusScreen from "./src/screens/parent/ParentStatusScreen";
 import ChildInboxScreen from "./src/screens/child/ChildInboxScreen";
 import ConsultationDetailScreen from "./src/screens/child/ConsultationDetailScreen";
+import type { PushRoute } from "./src/domain/push";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+// 通知を押したら相談の画面を開く（画面の組がまだ用意できていなければ開かない）。
+function openFromNotification(route: PushRoute) {
+  if (!navigationRef.isReady()) return;
+  if (route.name === "ParentStatus")
+    navigationRef.navigate("ParentStatus", route.params);
+  else navigationRef.navigate("ConsultationDetail", route.params);
+}
+
+// つながったあと、通知のトークンを保存し、通知から相談を開く（開発ビルドの実機だけ。pushTokens.ts）。
+function PushNotifications() {
+  const session = useSession();
+  const paired =
+    session.status === "paired"
+      ? { role: session.role, pairId: session.pairId }
+      : null;
+  usePushNotifications(backend, paired, openFromNotification);
+  return null;
+}
 
 // サインインとペアの状態で、出す画面の組を切り替える（状態が変わると、その組の最初の画面へ移る）。
 function RootNavigator() {
@@ -97,9 +123,10 @@ export default function App() {
     <SafeAreaProvider>
       <SessionProvider>
         <StoreProvider>
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <RootNavigator />
           </NavigationContainer>
+          <PushNotifications />
           <StatusBar style="dark" />
         </StoreProvider>
       </SessionProvider>
