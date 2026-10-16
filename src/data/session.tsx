@@ -40,6 +40,19 @@ const SessionContext = createContext<SessionValue | null>(null);
 const LOAD_ERROR =
   "つながりませんでした。電波のよい所で、もう一度ためしてください。";
 
+// 出す画面が変わらない読み直し（前面復帰・購読のつなぎ直し）では、前の状態をそのまま使う。
+// 新しい状態を入れると、それを使う画面の effect が走り直す（子の番号が作り直される）。
+function sameState(a: SessionState, b: SessionState): boolean {
+  if (a.status !== b.status) return false;
+  if (a.status === "loading" && b.status === "loading")
+    return a.error === b.error;
+  if (a.status === "child_unpaired" && b.status === "child_unpaired")
+    return a.pairId === b.pairId;
+  if (a.status === "paired" && b.status === "paired")
+    return a.pairId === b.pairId && a.role === b.role;
+  return true;
+}
+
 // 役割とペアから状態を作る（子でペアがまだ無ければ作る）。
 async function readState(): Promise<SessionState> {
   await backend.signIn();
@@ -67,13 +80,17 @@ async function readState(): Promise<SessionState> {
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
 
+  const update = useCallback((next: SessionState) => {
+    setState((prev) => (sameState(prev, next) ? prev : next));
+  }, []);
+
   const load = useCallback(
     (): Promise<void> =>
-      readState().then(setState, (e: unknown) => {
+      readState().then(update, (e: unknown) => {
         console.warn("サインインに失敗しました", e);
-        setState({ status: "loading", error: LOAD_ERROR });
+        update({ status: "loading", error: LOAD_ERROR });
       }),
-    [],
+    [update],
   );
 
   useEffect(() => {
@@ -128,19 +145,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     await load();
   }, [load]);
 
+  // 画面の effect の依存に入るので、同じ関数を使い続ける（作り直すと子の番号が出し直しになる）。
+  const createInvite = useCallback(() => backend.createInvite(), []);
+
+  const retry = useCallback(() => {
+    setState({ status: "loading" });
+    void load();
+  }, [load]);
+
   const value = useMemo<SessionValue>(
     () => ({
       ...state,
       chooseRole,
-      createInvite: () => backend.createInvite(),
+      createInvite,
       redeemInvite,
       restart,
-      retry: () => {
-        setState({ status: "loading" });
-        void load();
-      },
+      retry,
     }),
-    [state, chooseRole, redeemInvite, restart, load],
+    [state, chooseRole, createInvite, redeemInvite, restart, retry],
   );
 
   return (
