@@ -6,6 +6,7 @@ import { RootStackParamList } from "../../navigation/types";
 import Emoji from "../../components/Emoji";
 import Screen from "../../components/Screen";
 import Spacer from "../../components/Spacer";
+import SyncErrorNotice from "../../components/SyncErrorNotice";
 import StatusBadge, { STATUS_BADGE } from "../../components/StatusBadge";
 import { APP_NAME } from "../../constants";
 import { useStore } from "../../data/store";
@@ -24,11 +25,12 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "ChildInbox">;
 
 export default function ChildInboxScreen({ navigation }: Props) {
-  const { consultations } = useStore();
+  const { consultations, syncError } = useStore();
 
   if (consultations.length === 0) {
     return (
       <Screen>
+        <SyncErrorNotice message={syncError} />
         <View style={styles.empty}>
           <Text style={styles.emptyText}>まだ相談はありません。</Text>
           <Text style={styles.emptySub}>
@@ -41,6 +43,7 @@ export default function ChildInboxScreen({ navigation }: Props) {
 
   return (
     <Screen>
+      <SyncErrorNotice message={syncError} />
       <FlatList
         data={consultations}
         keyExtractor={(item) => item.id}
