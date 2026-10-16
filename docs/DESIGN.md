@@ -182,11 +182,19 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 | アプリ           | **Expo (React Native + TypeScript)**   | iOS/Android 単一コード。Expo Go で実機テスト（プッシュ通知は SDK 53 以降の Expo Go では試せず、開発ビルドが要る） |
 | バックエンド     | **Supabase**                           | Postgres + リアルタイム購読 + 認証 + Edge Functions（無料枠・カード不要）                                         |
 | リアルタイム同期 | Supabase Realtime                      | consultations の変更と pairs の更新を 1 本のチャンネルで購読し、親と子の画面へ即反映                              |
-| プッシュ通知     | **Expo Push** + Supabase Edge Function | 相談作成時に相手へ送信                                                                                            |
+| プッシュ通知     | **Expo Push** + Supabase Edge Function | 相談は子へ、返事は親へ。Database Webhook → Edge Function `notify` → Expo Push（実機での到達は未確認）             |
 | ペアリング       | 招待コード（6桁）/ QR                  | 親はアカウント作成不要                                                                                            |
 
 > 代替案：Firebase（Firestore + Cloud Messaging）。realtimeは同等に簡単だが、
 > サーバー側プッシュに Blaze（課金）プランが要るため、無料で始めやすい Supabase を第一候補にする。
+
+### プッシュ通知
+
+- 送る側は `supabase/functions/notify/`。中身の `core.ts` は Deno にも Node にも依存せず（fetch・時計・DB は引数で受ける）、`tests/notify.test.mjs` で検査する。Deno の入口 `index.ts` は秘密のヘッダ（`NOTIFY_WEBHOOK_SECRET`）を確かめ、service role の client を渡すだけ
+- consultations の INSERT なら子へ、UPDATE で waiting → answered になったら親へ送る（宛先は pairs の行から）。答えを開いた印の UPDATE では送らない。本文は断定の語を使わない
+- 送れなかったとき: 通信失敗・429・5xx は 1 秒・2 秒・4 秒と間を広げて 3 回まで再試行、400 は再試行しない。DeviceNotRegistered のトークンは disabled_at を埋め、以後は送らない。ticket は 1 件ずつ push_log に残す（届いたかの receipt は見ない）
+- アプリは開発ビルドの実機でだけ、つながったあとにトークンを取って push_tokens に upsert する（`src/data/pushTokens.ts`）。通知を押すと、親は答えの画面、子は相談の詳細を開く。サインアウトの前に自分のトークンの行を外す（token が主キーで、自分の行しか書けないため）
+- プッシュは補助の経路で、正本は DB。画面は Realtime と起動時・前面復帰の取り直しで追いつく
 
 ### 送れなかったとき
 
@@ -217,7 +225,7 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 2. **親ホーム → 種類選択 → 送信**（まずローカルで画面だけ）（済）
 3. **Supabaseに保存 → 子側で一覧表示**（データが繋がる）（済: 偽バックエンドの 2 タブで確認。本物の Supabase ではまだ）
 4. **子が返信 → 親にリアルタイム反映**（コアループ完成）（済: 同上）
-5. **プッシュ通知**（相談・返信を通知）
+5. **プッシュ通知**（相談・返信を通知）（済: Edge Function・トークンの保存・通知から開く。本物の Supabase と実機ではまだ）
 6. **招待コードでペアリング**（済: 6 桁の番号。QR はまだ）
 7. **親UIの磨き込み**（文字大・色分け・迷わない導線）
 8. 実機で親役・子役に分けて実地テスト

@@ -6,7 +6,7 @@
 <img src="docs/screenshots/answer.png" width="280" alt="親の答えの画面。赤い見出し「詐欺かもしれません」と、子からの返信「それ詐欺かも！絶対に対応しないで」">
 
 - 設計: [docs/DESIGN.md](docs/DESIGN.md)
-- 技術: Expo (React Native + TypeScript) / Supabase（匿名サインイン・Postgres・RLS・Realtime）/ 予定: Expo Push
+- 技術: Expo (React Native + TypeScript) / Supabase（匿名サインイン・Postgres・RLS・Realtime）/ Expo Push（Database Webhook → Edge Function）
 - 作り方の規則と、この repo で違うこと: [docs/DESIGN.md](docs/DESIGN.md#この-repo-での適用)
 
 ## いまの状態（Supabase 版）
@@ -16,6 +16,7 @@
 - 親フロー: ホーム →「これ、大丈夫？」→ 種類選択 → 相談中 → 答え（ホームに最近の相談の入口が最大3件。まだ開いていない答えは大ボタンより上に出る）
 - 子フロー: 受信一覧 → 詳細 → 定型文、または自由入力（200字まで）＋判定（詐欺かも / 大丈夫そう / まだ分からない）で返信
 - データは Supabase（`supabase/migrations/`）。相談と返信は Realtime で相手の画面に再読み込みなしで出る。送れなかったときは手元の表示を元に戻す
+- 相談が届くと子のスマホに、返事が届くと親のスマホにプッシュ通知を送り、押すとその相談を開く（開発ビルドの実機だけ。実機での到達はまだ確かめていない）
 - 開発中に Supabase の設定が無いときは、端末内の偽バックエンドで動く（Web は 2 タブで親と子の往復を試せる）
 - 親のホームと子の受信一覧の一番下に「つなぎ直す」がある（スマホを替えたときなどに、もう一度番号でつなぐ）
 - 開発用に、ペアリングの画面の下に「最初からやり直す」（新しい匿名ユーザーで役割の選択から）がある
@@ -76,6 +77,17 @@ npm run web        # Expo 開発サーバーを起動してブラウザで開く
 3. SQL Editor で `supabase/migrations/` の 2 本を名前の順に流す（`20261016000000_init.sql` → `20261016000001_realtime.sql`）
 4. プロジェクトの URL と anon key（公開用の鍵）を、上の `.env.local` に書いて `npm start` し直す
 
+## プッシュ通知の準備
+
+送る側は `supabase/functions/notify/`（中身は Deno に依存しない `core.ts`、入口は `index.ts`）。相談の INSERT で子へ「親から相談：<種類>」、返信で answered になった UPDATE で親へ「返事が届きました」を送り、送った結果（ticket）を push_log に残す。
+
+1. 開発ビルドを用意する。SDK 53 以降の Expo Go ではプッシュを試せず、Web は expo-notifications の対応先に無い。アプリは expo-device の `isDevice` が true で、かつ Expo Go（`Constants.executionEnvironment` が `storeClient` で `Constants.appOwnership` が `expo`）でないときだけトークンを取る（`src/domain/push.ts`）
+2. EAS の projectId を `app.json` の `expo.extra.eas.projectId` に入れる（`eas init` で入る）。無ければアプリは警告を 1 回出してトークンを取らない
+3. Edge Function を置く: `supabase functions deploy notify`。Webhook は利用者の JWT を持たないので、`supabase/config.toml` の `[functions.notify]` に `verify_jwt = false` を書く（守りは下の秘密のヘッダ）。`core.ts` は `src/domain/` の 3 ファイルを読むので、デプロイの束ねにそれらが入るかを最初に確かめる
+4. 秘密を 2 つ入れる: `supabase secrets set NOTIFY_WEBHOOK_SECRET=<長い乱数> EXPO_ACCESS_TOKEN=<Expo の access token>`。`EXPO_ACCESS_TOKEN` は任意で、EAS の設定で送信に access token を求めるようにしたときに要る。`SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` は Edge Function に最初から入っている
+5. Database Webhook を作る（Database → Webhooks）: 表は `public.consultations`、出来事は Insert と Update、送り先は POST で `https://<プロジェクトの ref>.supabase.co/functions/v1/notify`、ヘッダは `Content-Type: application/json` と `x-notify-secret: <NOTIFY_WEBHOOK_SECRET と同じ値>`。URL にプロジェクト固有の値が入るので、移行 SQL には書いていない
+6. 確かめ方: 開発ビルドの実機 2 台で相談と返信をし、push_log に `status = ok` の行が増えることを見る（ok は Expo が受けた印で、届いた印ではない）
+
 ## 既知の制限
 
 - 送った直後の 1 件の取り直しに失敗すると、次に一覧を取り直すまで、その 1 件は端末の時刻の版で並ぶ（DB の時刻ではない。ずれるのは並び順だけ）
@@ -83,7 +95,7 @@ npm run web        # Expo 開発サーバーを起動してブラウザで開く
 
 ## この先の予定
 
-1. プッシュ通知（相談・返信を通知。Expo Go では試せず、開発ビルドが要る）
+1. プッシュ通知を実機で確かめる（開発ビルドと EAS の準備が要る。届いたかの確認 receipt はまだ見ていない）
 2. 写真添付（ハガキ/SMSを撮る）
 3. 親UIの磨き込み・実地テスト
 4. ペアの解除（いまの「つなぎ直す」は新しい利用者で結び直すだけで、前のペアは DB に残る）
