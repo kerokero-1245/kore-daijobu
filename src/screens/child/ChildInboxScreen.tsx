@@ -4,6 +4,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../../navigation/types";
 import Emoji from "../../components/Emoji";
+import RepairLink from "../../components/RepairLink";
 import Screen from "../../components/Screen";
 import Spacer from "../../components/Spacer";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
@@ -37,6 +38,7 @@ export default function ChildInboxScreen({ navigation }: Props) {
             {`親が「${APP_NAME}」を押すと、ここに届きます。`}
           </Text>
         </View>
+        <RepairLink />
       </Screen>
     );
   }
@@ -49,6 +51,7 @@ export default function ChildInboxScreen({ navigation }: Props) {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingVertical: space.sm }}
         ItemSeparatorComponent={() => <Spacer size="sm" />}
+        ListFooterComponent={<RepairLink />}
         renderItem={({ item }) => (
           <Pressable
             style={({ pressed }) => [

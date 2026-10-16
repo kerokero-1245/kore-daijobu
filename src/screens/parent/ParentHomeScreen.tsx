@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
+import RepairLink from "../../components/RepairLink";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import useOnce from "../../hooks/useOnce";
@@ -96,6 +97,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
           {others.map(renderEntry)}
         </View>
       ) : null}
+      <RepairLink />
     </Screen>
   );
 }

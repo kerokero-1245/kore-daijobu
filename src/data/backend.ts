@@ -31,7 +31,7 @@ export interface Backend {
   // 匿名でサインインし（済みならそのまま）、自分の uid を返す。
   // 保存したセッションが読めないときは、新しい利用者を作らずに失敗する（Supabase 版）。
   signIn(): Promise<string>;
-  // サインアウトする（開発用の「最初からやり直す」）。次の signIn は新しい匿名ユーザーになる。
+  // サインアウトする（開発用の「最初からやり直す」と「つなぎ直す」）。次の signIn は新しい匿名ユーザーになる。
   signOut(): Promise<void>;
   getRole(): Promise<Role | null>;
   // 役割を決める（profiles に 1 回だけ作る。あとから変えられない）。
