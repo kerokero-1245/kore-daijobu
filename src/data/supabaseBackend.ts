@@ -31,12 +31,34 @@ function fail(what: string, error: { message: string }): never {
   throw new Error(`${what}: ${error.message}`);
 }
 
+// 一度サインインしたことがある印（端末の保存に置く。アプリでは AsyncStorage、テストではメモリ）。
+export interface SignInMark {
+  has(): Promise<boolean>;
+  set(): Promise<void>;
+  clear(): Promise<void>;
+}
+
+function memoryMark(): SignInMark {
+  let marked = false;
+  return {
+    has: async () => marked,
+    set: async () => {
+      marked = true;
+    },
+    clear: async () => {
+      marked = false;
+    },
+  };
+}
+
 export class SupabaseBackend implements Backend {
   #client: SupabaseClient;
+  #mark: SignInMark;
   #uid: string | null = null;
 
-  constructor(client: SupabaseClient) {
+  constructor(client: SupabaseClient, mark: SignInMark = memoryMark()) {
     this.#client = client;
+    this.#mark = mark;
   }
 
   #me(): string {
@@ -45,17 +67,25 @@ export class SupabaseBackend implements Backend {
   }
 
   async signIn(): Promise<string> {
-    const { data: s } = await this.#client.auth.getSession();
+    const { data: s, error: sessionError } =
+      await this.#client.auth.getSession();
     const existing = s.session?.user.id;
     if (existing) {
       this.#uid = existing;
+      await this.#mark.set();
       return existing;
     }
+    // 保存したセッションが読めない・更新できないときに新しい匿名ユーザーを作ると、
+    // 元のペアから黙って外れてしまう。新しく作るのは、この端末で一度もサインインしていないときだけ。
+    if (sessionError) fail("getSession", sessionError);
+    if (await this.#mark.has())
+      throw new Error("getSession: 保存したセッションがありません");
     const { data, error } = await this.#client.auth.signInAnonymously();
     if (error) fail("signInAnonymously", error);
     const uid = data.user?.id;
     if (!uid) throw new Error("signInAnonymously: user がありません");
     this.#uid = uid;
+    await this.#mark.set();
     return uid;
   }
 
@@ -63,6 +93,8 @@ export class SupabaseBackend implements Backend {
     const { error } = await this.#client.auth.signOut();
     if (error) fail("signOut", error);
     this.#uid = null;
+    // 自分でサインアウトしたので、次の signIn は新しい匿名ユーザーを作ってよい。
+    await this.#mark.clear();
   }
 
   async getRole(): Promise<Role | null> {

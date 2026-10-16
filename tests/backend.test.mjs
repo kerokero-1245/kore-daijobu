@@ -612,6 +612,74 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
   });
 });
 
+// 保存したセッションが読めないときに新しい匿名ユーザーを作ると、元のペアから黙って外れる。
+function memoryMark(marked = false) {
+  return {
+    get marked() {
+      return marked;
+    },
+    has: async () => marked,
+    set: async () => {
+      marked = true;
+    },
+    clear: async () => {
+      marked = false;
+    },
+  };
+}
+
+describe("SupabaseBackend: サインインと端末の印", () => {
+  test("初めての端末では匿名で作り、サインインした印を置く", async () => {
+    const client = recordingClient();
+    const mark = memoryMark();
+    const b = new SupabaseBackend(client, mark);
+    assert.equal(await b.signIn(), UID);
+    assert.ok(client.calls.some((c) => c.auth === "signInAnonymously"));
+    assert.equal(mark.marked, true);
+  });
+
+  test("保存したセッションがあれば、それを使い新しく作らない", async () => {
+    const client = recordingClient();
+    client.auth.getSession = async () => ({
+      data: { session: { user: { id: "u-saved" } } },
+      error: null,
+    });
+    const mark = memoryMark();
+    const b = new SupabaseBackend(client, mark);
+    assert.equal(await b.signIn(), "u-saved");
+    assert.ok(!client.calls.some((c) => c.auth === "signInAnonymously"));
+    assert.equal(mark.marked, true);
+  });
+
+  test("セッションの読み込みが失敗したら、新しい利用者を作らずに失敗する", async () => {
+    const client = recordingClient();
+    client.auth.getSession = async () => ({
+      data: { session: null },
+      error: { message: "refresh failed" },
+    });
+    const b = new SupabaseBackend(client, memoryMark());
+    await assert.rejects(b.signIn(), /getSession: refresh failed/);
+    assert.ok(!client.calls.some((c) => c.auth === "signInAnonymously"));
+  });
+
+  test("前にサインインした印があるのにセッションが無ければ、新しい利用者を作らずに失敗する", async () => {
+    const client = recordingClient();
+    const b = new SupabaseBackend(client, memoryMark(true));
+    await assert.rejects(b.signIn(), /保存したセッションがありません/);
+    assert.ok(!client.calls.some((c) => c.auth === "signInAnonymously"));
+  });
+
+  test("自分でサインアウトしたら印を消し、次は新しい匿名ユーザーを作れる", async () => {
+    const client = recordingClient();
+    const mark = memoryMark(true);
+    const b = new SupabaseBackend(client, mark);
+    await b.signOut();
+    assert.equal(mark.marked, false);
+    assert.equal(await b.signIn(), UID);
+    assert.ok(client.calls.some((c) => c.auth === "signInAnonymously"));
+  });
+});
+
 describe("ペアリングの純関数", () => {
   test("起動時の状態: ペアが active なら paired、無ければ役割で分かれる", () => {
     const active = { pairId: "p", role: "child", status: "active" };
