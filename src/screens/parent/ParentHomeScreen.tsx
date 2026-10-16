@@ -97,6 +97,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
           {others.map(renderEntry)}
         </View>
       ) : null}
+      {/* 一番下に小さく「つなぎ直す」（押すと 1 回確かめる。src/components/RepairLink.tsx） */}
       <RepairLink />
     </Screen>
   );

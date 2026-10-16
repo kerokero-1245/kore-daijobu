@@ -38,6 +38,7 @@ export default function ChildInboxScreen({ navigation }: Props) {
             {`親が「${APP_NAME}」を押すと、ここに届きます。`}
           </Text>
         </View>
+        {/* 一番下に小さく「つなぎ直す」（一覧があるときは FlatList の下。src/components/RepairLink.tsx） */}
         <RepairLink />
       </Screen>
     );
