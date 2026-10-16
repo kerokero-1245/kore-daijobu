@@ -6,6 +6,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import Screen from "../components/Screen";
 import BigButton from "../components/BigButton";
+import RepairLink from "../components/RepairLink";
 import { useSession } from "../data/session";
 import { colors, lineHeight, space, textStyle } from "../theme";
 
@@ -26,6 +27,7 @@ export default function LoadingScreen() {
                 onPress={session.retry}
               />
             )}
+            {fatal ? null : <RepairLink />}
           </>
         ) : (
           <ActivityIndicator size="large" color={colors.primary} />
