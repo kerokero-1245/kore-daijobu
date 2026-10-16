@@ -459,6 +459,7 @@ export class FakeBackend implements Backend {
       throw new FakeDbError("42501", "row-level security: replies_answer");
     if (!Object.prototype.hasOwnProperty.call(VERDICTS, verdict))
       throw new FakeDbError("23514", "verdict check");
+    // アプリ側の規則（trim は改行・全角空白も削り、長さは UTF-16 の単位）。DB の check より厳しい。
     const len = message.trim().length;
     if (len < 1 || len > MAX_REPLY_LENGTH)
       throw new FakeDbError("23514", "message check");

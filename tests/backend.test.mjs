@@ -257,7 +257,7 @@ describe("FakeBackend: 相談と返信の役割", () => {
     assert.equal((await parent.getConsultation(ID)).parentSeenAt, w.clock.t);
   });
 
-  test("空白だけ・200 字を超える返信は拒否（DB の check と同じ）", async () => {
+  test("空白だけ・200 字を超える返信は拒否（アプリ側の規則。DB の check より厳しい）", async () => {
     const { child, parent, pairId } = await paired();
     await parent.insertConsultation({ id: ID, pairId, category: "money" });
     await assert.rejects(child.insertReply(ID, "safe", "  "), /check/);
