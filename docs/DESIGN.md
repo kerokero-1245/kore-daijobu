@@ -2,7 +2,7 @@
 
 > 高齢の親が「怪しい電話・訪問・SMS」に出くわしたとき、大きなボタン1つで子にすぐ相談できる詐欺対策アプリ。
 
-最終更新: 2026-10-15
+最終更新: 2026-10-16
 
 ---
 
@@ -21,7 +21,7 @@
 - 位置づけ（緊急通報ではなく相談の補助。断定表現をしない）: [立ち位置](#立ち位置重要法的配慮)
 - 親の画面（文字入力ゼロ・主操作の大ボタンは常に 1 つ・ホームの入口の件数と並び）: [親側](#親側文字入力ゼロ)
 - 子の返信（文面と判定がそろうまで送れない・自由入力の上限・親の見出しは判定で決まる）: [子側](#子側)
-- 判定と相談の種類の値: [5. データモデル](#5-データモデルsupabase--postgres-想定)
+- 判定と相談の種類の値: [5. データモデル](#5-データモデルsupabase--postgres)
 - 種類の表示は表（`CATEGORY_META`）から引き、表に無い値は other（その他）に寄せる（新しい種類を古いアプリが受けても落とさない）: `src/domain/category.ts`
 
 ### 記録の例
@@ -88,6 +88,23 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 
 ## 4. 画面の流れ
 
+### 最初の 1 回（役割とペアリング）
+
+```
+[どちらのスマホ？]  「親のスマホ」/「子のスマホ」  ※選んだ役割はあとから変えない（開発用の「最初からやり直す」だけ）
+     │
+     ├─ 子 ─▶ [番号を出す]  6 桁を大きく＋残り時間（10 分）＋「新しい番号を出す」
+     │                        │ 親のスマホで番号が入ると自動で
+     │                        ▼
+     │                      [受信一覧]
+     │
+     └─ 親 ─▶ [番号を入れる]  数字キー 0〜9 と「消す」。はじめの設定として子が親のスマホで打つ
+                              失敗は 1 文で出す（期限切れ・使用済み・ちがう番号・回数が多すぎる）
+                              │ 6 桁そろうと自動で送り、つながると
+                              ▼
+                            [ホーム]
+```
+
 ### 親側（文字入力ゼロ）
 
 ```
@@ -142,39 +159,17 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 
 ---
 
-## 5. データモデル（Supabase / Postgres 想定）
+## 5. データモデル（Supabase / Postgres）
 
-```
-users
-  id            (uuid, PK)
-  role          ('parent' | 'child')
-  display_name  (text)          -- 「お母さん」「たろう」など
-  push_token    (text)          -- Expo push token
-  created_at
+表・制約・RLS・招待の関数・返信のトリガーの正本は [supabase/migrations/](../supabase/migrations/)（`20261016000000_init.sql` と Realtime の `20261016000001_realtime.sql`）。要点:
 
-pairs                            -- 親と子の繋がり（MVPは1本）
-  id            (uuid, PK)
-  parent_id     (uuid → users)
-  child_id      (uuid → users)
-  invite_code   (text)          -- ペアリング用
-  status        ('pending' | 'active')
-  created_at
-
-consultations                    -- 相談1件
-  id            (uuid, PK)
-  pair_id       (uuid → pairs)
-  category      (text)           -- 'money' | 'refund' | 'construction' | 'impersonation' | 'other'
-  photo_url     (text, null可)
-  status        ('waiting' | 'answered')
-  created_at
-
-replies                          -- 相談への返信
-  id            (uuid, PK)
-  consultation_id (uuid → consultations)
-  verdict       ('danger' | 'safe' | 'unsure')  -- 色分け用
-  message       (text)
-  created_at
-```
+- 表は profiles（auth.users と同じ id・役割）/ pairs（子が pending で作り、招待の引き換えで active）/ pair_invites・invite_attempts（招待と試行。クライアントからは読めない）/ consultations / replies / push_tokens / push_log
+- 守りは DB に置く（anon key はアプリに入るため）。全表に RLS を掛け、自分のペアの当事者だけが読める。相談を作れるのは親、返信できるのは子だけ
+- status は列の grant から外し、返信の挿入トリガーだけが answered にする（「返信あり・返事待ち」を DB でも作れない。画面の判別共用体と同じ不変条件）
+- 招待は `create_invite()` / `redeem_invite(code)` の関数だけで扱う（6 桁・10 分・使い切り・失敗が 10 分で 5 回に達したら断る）
+- アプリは `src/data/backend.ts` の窓口だけを使い、Supabase の設定が無いときは同じ規則の偽バックエンド（`src/data/fakeBackend.ts`）で動く。行は `src/domain/row.ts` で読み、status と返信の組が合わない行は捨てる
+- 相談の id はアプリが作り、先に手元へ足してから送る。送れなければ手元を戻す。相手の変化は Realtime（consultations と pairs）で受け、起動時と前面に戻ったときに最近 50 件を取り直す
+- セッションは iOS / Android では暗号化して端末に置き（鍵は SecureStore）、Web には SecureStore が無いので localStorage に平文で置く（ブラウザの保存域は同じオリジンからしか読めず、暗号化しても鍵を同じ場所に置くことになるため）
 
 将来の複数家族対応は `pairs` を「1親 : N子」に拡張、`consultations` を全員に配信して最初の返信を採用、で対応可能。
 
@@ -182,13 +177,13 @@ replies                          -- 相談への返信
 
 ## 6. 技術構成
 
-| 役割             | 技術                                   | 補足                                                                      |
-| ---------------- | -------------------------------------- | ------------------------------------------------------------------------- |
-| アプリ           | **Expo (React Native + TypeScript)**   | iOS/Android 単一コード。Expo Go で実機テスト                              |
-| バックエンド     | **Supabase**                           | Postgres + リアルタイム購読 + 認証 + Edge Functions（無料枠・カード不要） |
-| リアルタイム同期 | Supabase Realtime                      | 返信を親画面へ即反映（`answered` を購読）                                 |
-| プッシュ通知     | **Expo Push** + Supabase Edge Function | 相談作成時に相手へ送信                                                    |
-| ペアリング       | 招待コード（6桁）/ QR                  | 親はアカウント作成不要                                                    |
+| 役割             | 技術                                   | 補足                                                                                                              |
+| ---------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| アプリ           | **Expo (React Native + TypeScript)**   | iOS/Android 単一コード。Expo Go で実機テスト（プッシュ通知は SDK 53 以降の Expo Go では試せず、開発ビルドが要る） |
+| バックエンド     | **Supabase**                           | Postgres + リアルタイム購読 + 認証 + Edge Functions（無料枠・カード不要）                                         |
+| リアルタイム同期 | Supabase Realtime                      | 返信を親画面へ即反映（`answered` を購読）                                                                         |
+| プッシュ通知     | **Expo Push** + Supabase Edge Function | 相談作成時に相手へ送信                                                                                            |
+| ペアリング       | 招待コード（6桁）/ QR                  | 親はアカウント作成不要                                                                                            |
 
 > 代替案：Firebase（Firestore + Cloud Messaging）。realtimeは同等に簡単だが、
 > サーバー側プッシュに Blaze（課金）プランが要るため、無料で始めやすい Supabase を第一候補にする。
@@ -201,12 +196,12 @@ replies                          -- 相談への返信
 
 ## 7. ロードマップ（作る順番）
 
-1. **プロジェクト雛形** … Expo アプリ + Supabase プロジェクト作成、DB定義
-2. **親ホーム → 種類選択 → 送信**（まずローカルで画面だけ）
-3. **Supabaseに保存 → 子側で一覧表示**（データが繋がる）
-4. **子が返信 → 親にリアルタイム反映**（コアループ完成）
+1. **プロジェクト雛形** … Expo アプリ + Supabase プロジェクト作成、DB定義（済: アプリと移行 SQL。Supabase プロジェクトの作成はまだ）
+2. **親ホーム → 種類選択 → 送信**（まずローカルで画面だけ）（済）
+3. **Supabaseに保存 → 子側で一覧表示**（データが繋がる）（済: 偽バックエンドの 2 タブで確認。本物の Supabase ではまだ）
+4. **子が返信 → 親にリアルタイム反映**（コアループ完成）（済: 同上）
 5. **プッシュ通知**（相談・返信を通知）
-6. **招待コードでペアリング**
+6. **招待コードでペアリング**（済: 6 桁の番号。QR はまだ）
 7. **親UIの磨き込み**（文字大・色分け・迷わない導線）
 8. 実機で親役・子役に分けて実地テスト
 

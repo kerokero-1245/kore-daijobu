@@ -1,7 +1,10 @@
 // 画面遷移の定義。各画面が受け取るパラメータの型。
 
 export type RootStackParamList = {
-  RoleSelect: undefined; // 開発用：親/子を切り替える入口
+  RoleSelect: undefined; // 入口：このスマホを親・子のどちらで使うか選ぶ
+  // ペアリング（6 桁の招待コード）
+  ChildPairing: undefined; // 子：番号を出す
+  ParentPairing: undefined; // 親：番号を入れる
   // 親フロー
   ParentHome: undefined;
   CategorySelect: undefined;
