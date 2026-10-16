@@ -15,12 +15,13 @@ import React, {
 } from "react";
 import { AppState } from "react-native";
 
-import { backend } from "./backendInstance";
+import { backend, requireBackend } from "./backendInstance";
 import type { Invite, RedeemResult } from "./backend";
 import { sessionStatusOf, type PairInfo, type Role } from "../domain/pairing";
 
 export type SessionState =
-  | { status: "loading"; error?: string }
+  // fatal: もう一度ためしても直らない（設定が無い）。起動画面に「もう一度」を出さない。
+  | { status: "loading"; error?: string; fatal?: boolean }
   | { status: "choose_role" }
   | { status: "child_unpaired"; pairId: string }
   | { status: "parent_unpaired" }
@@ -40,12 +41,19 @@ const SessionContext = createContext<SessionValue | null>(null);
 const LOAD_ERROR =
   "つながりませんでした。電波のよい所で、もう一度ためしてください。";
 
+const CONFIG_ERROR =
+  "設定がありません。このアプリは、まだ使える状態になっていません。";
+
+const INITIAL: SessionState = backend
+  ? { status: "loading" }
+  : { status: "loading", error: CONFIG_ERROR, fatal: true };
+
 // 出す画面が変わらない読み直し（前面復帰・購読のつなぎ直し）では、前の状態をそのまま使う。
 // 新しい状態を入れると、それを使う画面の effect が走り直す（子の番号が作り直される）。
 function sameState(a: SessionState, b: SessionState): boolean {
   if (a.status !== b.status) return false;
   if (a.status === "loading" && b.status === "loading")
-    return a.error === b.error;
+    return a.error === b.error && a.fatal === b.fatal;
   if (a.status === "child_unpaired" && b.status === "child_unpaired")
     return a.pairId === b.pairId;
   if (a.status === "paired" && b.status === "paired")
@@ -55,12 +63,13 @@ function sameState(a: SessionState, b: SessionState): boolean {
 
 // 役割とペアから状態を作る（子でペアがまだ無ければ作る）。
 async function readState(): Promise<SessionState> {
-  await backend.signIn();
-  const role = await backend.getRole();
-  let pair: PairInfo | null = await backend.getPair();
+  const b = requireBackend();
+  await b.signIn();
+  const role = await b.getRole();
+  let pair: PairInfo | null = await b.getPair();
   if (role === "child" && !pair) {
-    await backend.createPair();
-    pair = await backend.getPair();
+    await b.createPair();
+    pair = await b.getPair();
   }
   const status = sessionStatusOf(role, pair);
   switch (status) {
@@ -78,7 +87,7 @@ async function readState(): Promise<SessionState> {
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<SessionState>({ status: "loading" });
+  const [state, setState] = useState<SessionState>(INITIAL);
 
   const update = useCallback((next: SessionState) => {
     setState((prev) => (sameState(prev, next) ? prev : next));
@@ -94,14 +103,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    void load();
+    if (backend) void load();
   }, [load]);
 
   // 子は、親の端末で番号が入って pairs が active になるのを待つ。前面に戻ったときも読み直す。
   const waitingPairId = state.status === "child_unpaired" ? state.pairId : null;
   useEffect(() => {
     if (!waitingPairId) return;
-    const stop = backend.subscribePair(waitingPairId, (e) => {
+    const stop = requireBackend().subscribePair(waitingPairId, (e) => {
       if (e.kind !== "consultation") void load();
     });
     const sub = AppState.addEventListener("change", (s) => {
@@ -116,8 +125,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const chooseRole = useCallback(
     async (role: Role) => {
       try {
-        await backend.setRole(role);
-        if (role === "child") await backend.createPair();
+        await requireBackend().setRole(role);
+        if (role === "child") await requireBackend().createPair();
       } catch (e) {
         console.warn("役割を保存できませんでした", e);
       }
@@ -128,7 +137,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const redeemInvite = useCallback(
     async (code: string) => {
-      const result = await backend.redeemInvite(code);
+      const result = await requireBackend().redeemInvite(code);
       if (result.ok) await load();
       return result;
     },
@@ -138,7 +147,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const restart = useCallback(async () => {
     setState({ status: "loading" });
     try {
-      await backend.signOut();
+      await requireBackend().signOut();
     } catch (e) {
       console.warn("サインアウトに失敗しました", e);
     }
@@ -146,7 +155,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [load]);
 
   // 画面の effect の依存に入るので、同じ関数を使い続ける（作り直すと子の番号が出し直しになる）。
-  const createInvite = useCallback(() => backend.createInvite(), []);
+  const createInvite = useCallback(() => requireBackend().createInvite(), []);
 
   const retry = useCallback(() => {
     setState({ status: "loading" });

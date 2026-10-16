@@ -1,5 +1,5 @@
 // 相談のデータストア。画面はこの useStore だけを使う（StoreValue が画面との契約）。
-// 中身はバックエンド（Supabase、設定が無ければ端末内の偽物。src/data/backendInstance.ts）と同期する:
+// 中身はバックエンド（Supabase、開発中で設定が無ければ端末内の偽物。src/data/backendInstance.ts）と同期する:
 //   - ペアが決まったら最近 50 件を取り、アプリが前面に戻るたびに取り直す
 //   - 書き込みは先に手元を直してから送り、送れなければ手元を戻して syncError に理由を入れる
 //   - ペアの変化（Realtime）を購読し、変わった 1 件を取り直す
@@ -53,7 +53,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // ペアごとに同期の入れ物を 1 つ作る（作るだけで、通信は下の effect で始める）。
   const sync = useMemo(
     () =>
-      pairId
+      pairId && backend
         ? createConsultationSync({
             backend,
             pairId,
