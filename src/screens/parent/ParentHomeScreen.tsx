@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
+import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import useOnce from "../../hooks/useOnce";
 import { APP_NAME_TWO_LINES, CHILD_CALL_NAME } from "../../constants";
@@ -29,7 +30,7 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "ParentHome">;
 
 export default function ParentHomeScreen({ navigation }: Props) {
-  const { consultations } = useStore();
+  const { consultations, syncError } = useStore();
   const entries = pickEntries(consultations);
   // まだ開いていない答えは、大ボタンより上に出して最初に目に入るようにする。
   const unseen = entries.filter(isUnseenAnswer);
@@ -59,6 +60,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
 
   return (
     <Screen scroll>
+      <SyncErrorNotice message={syncError} />
       {unseen.length > 0 ? (
         <View style={styles.unseen}>
           <Text style={styles.sectionTitle}>

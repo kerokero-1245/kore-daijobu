@@ -14,6 +14,7 @@ import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import Emoji from "../../components/Emoji";
+import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import useOnce from "../../hooks/useOnce";
 import { REPLY_TEMPLATES, VERDICT_META, VERDICT_ORDER } from "../../constants";
@@ -38,7 +39,7 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "ConsultationDetail">;
 
 export default function ConsultationDetailScreen({ navigation, route }: Props) {
-  const { getConsultation, replyToConsultation } = useStore();
+  const { getConsultation, replyToConsultation, syncError } = useStore();
   const consultation = getConsultation(route.params.consultationId);
   const [text, setText] = useState("");
   // 自由入力の返信で子が選んだ判定。選ぶまでは送れない。
@@ -51,6 +52,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
   if (!consultation) {
     return (
       <Screen>
+        <SyncErrorNotice message={syncError} />
         <Text style={styles.info}>相談が見つかりませんでした。</Text>
       </Screen>
     );
@@ -98,6 +100,7 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
 
   return (
     <Screen scroll>
+      <SyncErrorNotice message={syncError} />
       <View style={styles.header}>
         <Emoji size="huge">{categoryEmoji(consultation.category)}</Emoji>
         <View>

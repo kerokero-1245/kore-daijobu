@@ -6,6 +6,7 @@ import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import HomeButton from "../../components/HomeButton";
 import Spacer from "../../components/Spacer";
+import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import { CHILD_CALL_NAME, VERDICT_META } from "../../constants";
 import { categoryLabel } from "../../domain/category";
@@ -24,7 +25,7 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "ParentStatus">;
 
 export default function ParentStatusScreen({ navigation, route }: Props) {
-  const { getConsultation, markAnswerSeen } = useStore();
+  const { getConsultation, markAnswerSeen, syncError } = useStore();
   const consultation = getConsultation(route.params.consultationId);
   const answeredUnseen =
     consultation !== undefined && isUnseenAnswer(consultation);
@@ -38,6 +39,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
   if (!consultation) {
     return (
       <Screen>
+        <SyncErrorNotice message={syncError} />
         <View style={styles.center}>
           <Text style={styles.info}>相談が見つかりませんでした。</Text>
           <HomeButton onPress={goHome} />
@@ -69,6 +71,7 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
   // 長い返信でも見出しが隠れないよう、スクロールできる画面にする（内容が短いときは中央寄せ）。
   return (
     <Screen scroll>
+      <SyncErrorNotice message={syncError} />
       <View style={styles.center}>
         <Text style={styles.category}>
           {categoryLabel(consultation.category)}
