@@ -193,7 +193,7 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 - 送る側は `supabase/functions/notify/`。中身の `core.ts` は Deno にも Node にも依存せず（fetch・時計・DB は引数で受ける）、`tests/notify.test.mjs` で検査する。Deno の入口 `index.ts` は秘密のヘッダ（`NOTIFY_WEBHOOK_SECRET`）を確かめ、service role の client を渡すだけ
 - consultations の INSERT なら子へ、UPDATE で waiting → answered になったら親へ送る（宛先は pairs の行から）。答えを開いた印の UPDATE では送らない。本文は断定の語を使わない
 - 送れなかったとき: 通信失敗・429・5xx は 1 秒・2 秒・4 秒と間を広げて 3 回まで再試行、400 は再試行しない。DeviceNotRegistered のトークンは disabled_at を埋め、以後は送らない。ticket は 1 件ずつ push_log に残す（届いたかの receipt は見ない）
-- アプリは開発ビルドの実機でだけ、つながったあとにトークンを取って push_tokens に upsert する（`src/data/pushTokens.ts`）。通知を押すと、親は答えの画面、子は相談の詳細を開く。サインアウトの前に自分のトークンの行を外す（token が主キーで、自分の行しか書けないため）
+- アプリは開発ビルドの実機でだけ、つながったあとにトークンを取って push_tokens に upsert する（`src/data/pushTokens.native.ts`。Web 版の `pushTokens.ts` は expo-notifications を読まずに何もしない）。通知を押すと、親は答えの画面、子は相談の詳細を開く。サインアウトの前に自分のトークンの行を外す（token が主キーで、自分の行しか書けないため）
 - プッシュは補助の経路で、正本は DB。画面は Realtime と起動時・前面復帰の取り直しで追いつく
 
 ### 送れなかったとき
