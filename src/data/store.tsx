@@ -31,7 +31,7 @@ interface StoreValue {
   createConsultation: (category: Category, photoUri?: string) => string; // 返り値: 作成したid
   replyToConsultation: (id: string, verdict: Verdict, message: string) => void;
   markAnswerSeen: (id: string) => void; // 親が答えを開いたことを記録する
-  syncError?: string; // 送れなかったときの理由（送れたら消える）
+  syncError?: string; // 送れなかったときの理由（一覧を取り直せたら消える）
 }
 
 const StoreContext = createContext<StoreValue | null>(null);

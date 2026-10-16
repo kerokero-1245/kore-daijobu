@@ -209,3 +209,41 @@ describe("consultationSync: 取り直しと購読", () => {
     stopParent();
   });
 });
+
+describe("consultationSync: 一覧の取り直しの失敗", () => {
+  test("一覧の取り直しに失敗したら syncError が入り、成功したら消える", async () => {
+    const { child, parent, pairId, syncOf } = await setup();
+    await parent.insertConsultation({ id: "c-1", pairId, category: "money" });
+    const sync = syncOf(child);
+    await sync.refresh();
+    assert.equal(sync.getState().syncError, undefined);
+
+    failOnce(child, "listConsultations");
+    await sync.refresh();
+    assert.equal(sync.getState().syncError, SYNC_ERROR_MESSAGE);
+    // 取り直せなかった間も、手元の一覧はそのまま残る。
+    assert.deepEqual(
+      sync.getState().consultations.map((c) => c.id),
+      ["c-1"],
+    );
+
+    await sync.refresh();
+    assert.equal(sync.getState().syncError, undefined);
+  });
+
+  test("起動時の取り直しに（購読のつなぎ直しでも）失敗したら syncError が入る", async () => {
+    const { child, syncOf } = await setup();
+    const sync = syncOf(child);
+    const original = child.listConsultations.bind(child);
+    child.listConsultations = async () => {
+      throw new Error("listConsultations: offline");
+    };
+    const stop = sync.start();
+    await sync.idle();
+    assert.equal(sync.getState().syncError, SYNC_ERROR_MESSAGE);
+    child.listConsultations = original;
+    await sync.refresh();
+    assert.equal(sync.getState().syncError, undefined);
+    stop();
+  });
+});

@@ -87,8 +87,15 @@ export function createConsultationSync(options: SyncOptions): ConsultationSync {
       ? list.map((x) => (x.id === c.id ? c : x))
       : [c, ...list].sort(byNewest);
 
+  // 取り直せなかったら、手元の一覧はそのままで syncError を入れる（取り直せたら "clear" で消す）。
   const refresh = async () => {
-    const remote = await backend.listConsultations(pairId, RECENT_LIMIT);
+    let remote: Consultation[];
+    try {
+      remote = await backend.listConsultations(pairId, RECENT_LIMIT);
+    } catch (e) {
+      setList(state.consultations, SYNC_ERROR_MESSAGE);
+      throw e;
+    }
     let list = remote;
     for (const local of pending.values()) list = upsert(list, local);
     setList(list.sort(byNewest), "clear");
