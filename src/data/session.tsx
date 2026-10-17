@@ -33,7 +33,7 @@ type SessionValue = SessionState & {
   createInvite: () => Promise<Invite>;
   redeemInvite: (code: string) => Promise<RedeemResult>;
   // サインアウトして新しい匿名ユーザーで最初からやり直す
-  // （ペアリングの画面の開発用「最初からやり直す」と、ホームの「つなぎ直す」）。
+  // （「つなぎ直す」を押したとき）。
   restart: () => Promise<void>;
   retry: () => void;
 };

@@ -1,12 +1,12 @@
 // 親のスマホ: 子のスマホに出ている 6 桁の番号を入れる。最初の設定として、子が親のスマホで打つ前提。
-// 6 桁そろうと自動で送り、失敗したら理由を平易な 1 文で出す。つながると親のホームへ切り替わる（App.tsx）。
+// 6 桁そろうと「つなぐ」が押せるようになり、押すと送る。失敗したら理由を平易な 1 文で出し、入れた数字は残す
+// （1 桁だけ直して送り直せるように）。つながると親のホームへ切り替わる（App.tsx）。
 
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
-import RestartLink from "../../components/RestartLink";
 import { useSession } from "../../data/session";
 import { INVITE_CODE_LENGTH, redeemMessage } from "../../domain/pairing";
 import {
@@ -29,28 +29,28 @@ export default function ParentPairingScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = (full: string) => {
+  const complete = code.length === INVITE_CODE_LENGTH;
+
+  const submit = () => {
+    if (busy || !complete) return;
     setBusy(true);
-    redeemInvite(full)
+    setMessage(null);
+    redeemInvite(code)
       .then((r) => {
         if (r.reason === "ok") return;
         setMessage(redeemMessage(r.reason));
-        setCode("");
       })
       .catch((e: unknown) => {
         console.warn("番号を送れませんでした", e);
         setMessage(SEND_ERROR);
-        setCode("");
       })
       .finally(() => setBusy(false));
   };
 
   const press = (digit: string) => {
     if (busy || code.length >= INVITE_CODE_LENGTH) return;
-    const next = code + digit;
-    setCode(next);
+    setCode(code + digit);
     setMessage(null);
-    if (next.length === INVITE_CODE_LENGTH) submit(next);
   };
 
   const erase = () => {
@@ -104,10 +104,19 @@ export default function ParentPairingScreen() {
           ))}
         </View>
       ))}
-      <View style={styles.erase}>
-        <BigButton label="消す" emoji="⌫" onPress={erase} />
+      <View style={styles.actions}>
+        <View style={styles.action}>
+          <BigButton label="消す" emoji="⌫" onPress={erase} disabled={busy} />
+        </View>
+        <View style={styles.action}>
+          <BigButton
+            label="つなぐ"
+            variant="primary"
+            onPress={submit}
+            disabled={busy || !complete}
+          />
+        </View>
       </View>
-      <RestartLink />
     </Screen>
   );
 }
@@ -155,5 +164,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   keyText: { fontSize: font.title, fontWeight: "700", color: colors.text },
-  erase: { marginTop: space.md },
+  actions: { flexDirection: "row", gap: space.sm, marginTop: space.md },
+  action: { flex: 1 },
 });

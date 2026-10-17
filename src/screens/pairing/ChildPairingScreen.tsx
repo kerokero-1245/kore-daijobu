@@ -6,7 +6,6 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
-import RestartLink from "../../components/RestartLink";
 import { useSession } from "../../data/session";
 import type { Invite } from "../../data/backend";
 import { formatRemaining } from "../../domain/pairing";
@@ -96,7 +95,6 @@ export default function ChildPairingScreen() {
       <View style={styles.button}>
         <BigButton label="新しい番号を出す" variant="primary" onPress={issue} />
       </View>
-      <RestartLink />
     </Screen>
   );
 }
