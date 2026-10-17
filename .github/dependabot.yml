@@ -1,4 +1,5 @@
 # 依存（npm）と GitHub Actions の更新を週 1 回 PR で受け取る
+# react-native・react・react-dom の minor は Expo SDK が版を決めるため、Dependabot の対象から外す。@expo/* と eslint-config-expo の major は SDK の更新と一緒に上げる
 version: 2
 updates:
   - package-ecosystem: npm
@@ -22,7 +23,17 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: react-dom
         update-types: ["version-update:semver-major"]
+      - dependency-name: react-native
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: react
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-minor"]
       - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@expo/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-expo
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
