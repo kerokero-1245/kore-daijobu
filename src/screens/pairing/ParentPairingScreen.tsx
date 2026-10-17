@@ -1,14 +1,24 @@
 // 親のスマホ: 子のスマホに出ている 6 桁の番号を入れる。最初の設定として、子が親のスマホで打つ前提。
 // 6 桁そろうと「つなぐ」が押せるようになり、押すと送る。失敗したら理由を平易な 1 文で出し、入れた数字は残す
 // （1 桁だけ直して送り直せるように）。つながると親のホームへ切り替わる（App.tsx）。
+// 入力の状態と「つなぐ」を押せるかは src/domain/pairingInput.ts が決める（断られた番号は数字を変えるまで送れない）。
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import { useSession } from "../../data/session";
 import { INVITE_CODE_LENGTH, redeemMessage } from "../../domain/pairing";
+import {
+  beginSend,
+  canSend,
+  eraseDigit,
+  finishSend,
+  initialPairingInput,
+  pressDigit,
+  type SendFailure,
+} from "../../domain/pairingInput";
 import {
   colors,
   font,
@@ -23,40 +33,42 @@ const KEY_ROWS = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["0"]];
 
 const SEND_ERROR = "送れませんでした。電波のよい所で、もう一度入れてください。";
 
+function failureMessage(failure: SendFailure): string {
+  return failure === "send_error" ? SEND_ERROR : redeemMessage(failure);
+}
+
 export default function ParentPairingScreen() {
   const { redeemInvite } = useSession();
-  const [code, setCode] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [input, setInput] = useState(initialPairingInput);
+  // 「つなぐ」を押せるかの判定に使う時刻。待つ窓が明けたときに進める。
+  const [now, setNow] = useState(() => Date.now());
+  const { code, busy, failure, lockedUntil } = input;
+  const message = failure ? failureMessage(failure) : null;
 
-  const complete = code.length === INVITE_CODE_LENGTH;
+  useEffect(() => {
+    if (lockedUntil === null) return;
+    const wait = Math.max(0, lockedUntil - Date.now());
+    const timer = setTimeout(() => setNow(Date.now()), wait);
+    return () => clearTimeout(timer);
+  }, [lockedUntil]);
 
   const submit = () => {
-    if (busy || !complete) return;
-    setBusy(true);
-    setMessage(null);
-    redeemInvite(code)
-      .then((r) => {
-        if (r.reason === "ok") return;
-        setMessage(redeemMessage(r.reason));
-      })
+    const t = Date.now();
+    const next = beginSend(input, t);
+    if (next === input) return;
+    setInput(next);
+    setNow(t);
+    redeemInvite(next.code)
+      .then((r) => setInput((s) => finishSend(s, r.reason, Date.now())))
       .catch((e: unknown) => {
         console.warn("番号を送れませんでした", e);
-        setMessage(SEND_ERROR);
-      })
-      .finally(() => setBusy(false));
+        setInput((s) => finishSend(s, "send_error", Date.now()));
+      });
   };
 
-  const press = (digit: string) => {
-    if (busy || code.length >= INVITE_CODE_LENGTH) return;
-    setCode(code + digit);
-    setMessage(null);
-  };
+  const press = (digit: string) => setInput((s) => pressDigit(s, digit));
 
-  const erase = () => {
-    if (busy) return;
-    setCode((c) => c.slice(0, -1));
-  };
+  const erase = () => setInput(eraseDigit);
 
   return (
     <Screen scroll>
@@ -113,7 +125,7 @@ export default function ParentPairingScreen() {
             label="つなぐ"
             variant="primary"
             onPress={submit}
-            disabled={busy || !complete}
+            disabled={!canSend(input, now)}
           />
         </View>
       </View>
