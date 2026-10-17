@@ -10,9 +10,9 @@
 //   → DeviceNotRegistered のトークンは disabled_at を埋め、以後は送らない
 // プッシュは届かないこともある補助の経路で、正本は DB（画面は Realtime と起動時の取り直しで追いつく）。
 
-import { CATEGORY_META } from "../../../src/domain/category.ts";
-import { APP_NAME } from "../../../src/constants.ts";
-import { PUSH_DATA_KEY } from "../../../src/domain/push.ts";
+// 種類の名前・アプリ名・data の名前は、同じフォルダの shared.ts（`npm run gen:notify` が src の正本から作る写し）から読む。
+// Deno のデプロイが functions の外を束ねる保証が無いので、このフォルダの外は import しない。
+import { APP_NAME, CATEGORY_META, PUSH_DATA_KEY } from "./shared.ts";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 // Webhook に付ける秘密のヘッダの名前（値は環境変数 NOTIFY_WEBHOOK_SECRET と同じにする）。

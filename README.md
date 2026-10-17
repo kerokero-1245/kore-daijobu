@@ -83,7 +83,8 @@ npm run web        # Expo 開発サーバーを起動してブラウザで開く
 
 1. 開発ビルドを用意する。SDK 53 以降の Expo Go ではプッシュを試せず、Web は expo-notifications の対応先に無い。アプリは expo-device の `isDevice` が true で、かつ Expo Go（`Constants.executionEnvironment` が `storeClient` で `Constants.appOwnership` が `expo`）でないときだけトークンを取る（`src/domain/push.ts`）
 2. EAS の projectId を `app.json` の `expo.extra.eas.projectId` に入れる（`eas init` で入る）。無ければアプリは警告を 1 回出してトークンを取らない
-3. Edge Function を置く: `supabase functions deploy notify`。Webhook は利用者の JWT を持たないので、`supabase/config.toml` の `[functions.notify]` に `verify_jwt = false` を書く（守りは下の秘密のヘッダ）。`core.ts` は `src/domain/` の 3 ファイルを読むので、デプロイの束ねにそれらが入るかを最初に確かめる
+3. Edge Function を置く: `supabase functions deploy notify`。Webhook は利用者の JWT を持たないので、`supabase/config.toml` の `[functions.notify]` に `verify_jwt = false` を書く（守りは下の秘密のヘッダ）。Function はフォルダの外を読まず、種類の名前・アプリ名・通知の data の名前は同じフォルダの `shared.ts`（アプリの正本から作る写し）から読む
+   - 種類の名前やアプリ名を変えたら `npm run gen:notify` を打って `shared.ts` を作り直す（CI のテストが写しと正本の一致を確かめる）
 4. 秘密を 2 つ入れる: `supabase secrets set NOTIFY_WEBHOOK_SECRET=<長い乱数> EXPO_ACCESS_TOKEN=<Expo の access token>`。`EXPO_ACCESS_TOKEN` は任意で、EAS の設定で送信に access token を求めるようにしたときに要る。`SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` は Edge Function に最初から入っている
 5. Database Webhook を作る（Database → Webhooks）: 表は `public.consultations`、出来事は Insert と Update、送り先は POST で `https://<プロジェクトの ref>.supabase.co/functions/v1/notify`、ヘッダは `Content-Type: application/json` と `x-notify-secret: <NOTIFY_WEBHOOK_SECRET と同じ値>`。URL にプロジェクト固有の値が入るので、移行 SQL には書いていない
 6. 確かめ方: 開発ビルドの実機 2 台で相談と返信をし、push_log に `status = ok` の行が増えることを見る（ok は Expo が受けた印で、届いた印ではない）
