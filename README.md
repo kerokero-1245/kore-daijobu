@@ -2,7 +2,7 @@
 
 高齢の親が、あやしい電話・訪問・SMS に出くわしたとき、大きなボタン1つで子にすぐ相談できる詐欺対策アプリ。
 
-<img src="docs/screenshots/top.png" width="280" alt="親のホーム画面。上に「答えが届きました」の入口、その下に青い丸ボタン「これ、大丈夫？」">
+<img src="docs/screenshots/top.png" width="280" alt="親のホーム画面。上に「答えが届きました」の入口、その下に橙の丸ボタン「これ、大丈夫？」">
 <img src="docs/screenshots/answer.png" width="280" alt="親の答えの画面。赤い見出し「詐欺かもしれません」と、子からの返信「それ詐欺かも！絶対に対応しないで」">
 
 - デモ: https://kerokero-1245.github.io/kore-daijobu/ （Web 版。端末内の偽バックエンドで動くので、2 台の共有とプッシュ通知は動かない。親と子の往復は 2 タブで試せる）
