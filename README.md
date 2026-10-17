@@ -74,22 +74,30 @@ npm run web        # Expo 開発サーバーを起動してブラウザで開く
 
 1. [Supabase](https://supabase.com/) で新しいプロジェクトを作る（無料のプランでよい）
 2. Anonymous sign-ins（匿名サインイン）をオンにする（Authentication の設定の中。画面の位置はこの repo では確かめていない）
-3. SQL Editor で `supabase/migrations/` の 2 本を名前の順に流す（`20261016000000_init.sql` → `20261016000001_realtime.sql`）
+3. SQL Editor で `supabase/migrations/` の 3 本を名前の順に流す（`20261016000000_init.sql` → `20261016000001_realtime.sql` → `20261017000000_push_token_claim.sql`）
 4. プロジェクトの URL と anon key（公開用の鍵）を、上の `.env.local` に書いて `npm start` し直す
 
 ## プッシュ通知の準備
 
-送る側は `supabase/functions/notify/`（中身は Deno に依存しない `core.ts`、入口は `index.ts`）。相談の INSERT で子へ「親から相談：<種類>」、返信で answered になった UPDATE で親へ「返事が届きました」を送り、送った結果（ticket）を push_log に残す。
+送る側は `supabase/functions/notify/`（中身は Deno に依存しない `core.ts`、入口の組み立ては同じく Deno に依存しない `entry.ts`、Deno の入口は `index.ts`）。相談の INSERT で子へ「親から相談：<種類>」、返信で answered になった UPDATE で親へ「返事が届きました」を送り、送った結果（ticket）を push_log に残す。メッセージは Android でも遅れにくいよう優先度 high、チャンネルはアプリが作る `default` で送る。
 
-1. 開発ビルドを用意する。SDK 53 以降の Expo Go ではプッシュを試せず、Web は expo-notifications の対応先に無い。アプリは expo-device の `isDevice` が true で、かつ Expo Go（`Constants.executionEnvironment` が `storeClient` で `Constants.appOwnership` が `expo`）でないときだけトークンを取る（`src/domain/push.ts`）
-2. EAS の projectId を `app.json` の `expo.extra.eas.projectId` に入れる（`eas init` で入る）。無ければアプリは警告を 1 回出してトークンを取らない
-3. Edge Function を置く: `supabase functions deploy notify`。Webhook は利用者の JWT を持たないので、`supabase/config.toml` の `[functions.notify]` に `verify_jwt = false` を書く（守りは下の秘密のヘッダ）。Function はフォルダの外を読まず、種類の名前・アプリ名・通知の data の名前は同じフォルダの `shared.ts`（アプリの正本から作る写し）から読む
+1. 開発ビルドを用意する。SDK 53 以降の Expo Go ではプッシュを試せず、Web は expo-notifications の対応先に無い。アプリは expo-device の `isDevice` が true で、かつ Expo Go（`Constants.executionEnvironment` が `storeClient` で `Constants.appOwnership` が `expo`）でないときだけトークンを取る（`src/domain/push.ts`）。`app.json` の `plugins` には Expo の手順どおり `expo-notifications` を入れてある（iOS の通知の権限 `aps-environment` などをビルドに書く）
+2. 通知の資格情報を用意する（無いとトークンを取る `getExpoPushTokenAsync` が失敗し、アプリは警告を出すだけになる見込み。下の 3 の EAS のプロジェクトが先に要る）
+   - Android（FCM V1）: Firebase のプロジェクトで Android アプリを登録して `google-services.json` を落とし、repo に置いて `app.json` の `expo.android.googleServicesFile` にそのパスを書く。Firebase のサービスアカウントの鍵（JSON）を EAS に入れる（`eas credentials` → Android → production → Google Service Account →「Manage your Google Service Account Key for Push Notifications (FCM V1)」、または expo.dev の Project settings → Credentials）。手順: [Add Android FCM V1 credentials](https://docs.expo.dev/push-notifications/fcm-credentials/)
+   - iOS（APNs）: 有料の Apple Developer のアカウントが要る。端末を登録してから最初の開発ビルド（`eas build`）を作るときに、EAS の問いに答えて Apple Push Notifications service の鍵を作る（EAS Build を使わないときは `eas credentials`）。手順: [Push notifications setup](https://docs.expo.dev/push-notifications/push-notifications-setup/)
+   - この repo で確かめたのは Expo の文書の記述だけ（2026-10-17 に docs.expo.dev で確認）。Firebase と Apple の画面の操作、資格情報が無いときの実機の振る舞いは確かめていない
+3. EAS の projectId を `app.json` の `expo.extra.eas.projectId` に入れる（`eas init` で入る）。無ければアプリは警告を 1 回出してトークンを取らない
+4. Edge Function を置く: `supabase functions deploy notify --no-verify-jwt --project-ref <プロジェクトの ref>`。Webhook は利用者の JWT を持たないので JWT の確認を外す（守りは下の秘密のヘッダ）。`supabase init` で `supabase/config.toml` を作ってあるなら、`[functions.notify]` に `verify_jwt = false` を書いて `--no-verify-jwt` を省いてもよい（この repo には config.toml を置いていない）。Function はフォルダの外を読まず、種類の名前・アプリ名・通知の data の名前・チャンネルは同じフォルダの `shared.ts`（アプリの正本から作る写し）から読む
    - 種類の名前やアプリ名を変えたら `npm run gen:notify` を打って `shared.ts` を作り直す（CI のテストが写しと正本の一致を確かめる）
-4. 秘密を 2 つ入れる: `supabase secrets set NOTIFY_WEBHOOK_SECRET=<長い乱数> EXPO_ACCESS_TOKEN=<Expo の access token>`。`EXPO_ACCESS_TOKEN` は任意で、EAS の設定で送信に access token を求めるようにしたときに要る。`SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` は Edge Function に最初から入っている
-5. Database Webhook を作る（Database → Webhooks）: 表は `public.consultations`、出来事は Insert と Update、送り先は POST で `https://<プロジェクトの ref>.supabase.co/functions/v1/notify`、ヘッダは `Content-Type: application/json` と `x-notify-secret: <NOTIFY_WEBHOOK_SECRET と同じ値>`。URL にプロジェクト固有の値が入るので、移行 SQL には書いていない
-6. 確かめ方: 開発ビルドの実機 2 台で相談と返信をし、push_log に `status = ok` の行が増えることを見る（ok は Expo が受けた印で、届いた印ではない）
+5. 秘密を入れる: `supabase secrets set NOTIFY_WEBHOOK_SECRET=<長い乱数>`。`EXPO_ACCESS_TOKEN=<Expo の access token>` は MVP では任意で、EAS の設定で送信に access token を求めるようにしたときに一緒に入れる（あれば `Authorization: Bearer` で付ける）。`SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` は Edge Function に最初から入っている
+6. Database Webhook を作る（Database → Webhooks）: 表は `public.consultations`、出来事は Insert と Update、送り先は POST で `https://<プロジェクトの ref>.supabase.co/functions/v1/notify`、ヘッダは `Content-Type: application/json` と `x-notify-secret: <NOTIFY_WEBHOOK_SECRET と同じ値>`。URL にプロジェクト固有の値が入るので、移行 SQL には書いていない
+   - Webhook の時間切れ（timeout）は設定できる上限まで上げる。Function は Expo への 1 回の送信を 5 秒で切り、失敗したら 1・2・4 秒あけて 3 回まで送り直すので、最も長いと 30 秒近くかかる。Webhook の既定の時間切れの値と、切れたあとも Function が最後まで動くかは確かめていない
+7. 確かめ方: 開発ビルドの実機 2 台で相談と返信をし、push_log に `status = ok` の行が増えることを見る（ok は Expo が受けた印で、届いた印ではない）。送らなかったときは `status` が空で `error` に理由（`no_tokens`＝相手のトークンが保存されていない・`no_pair`・`no_recipient`）の行が 1 行増える。行が 1 行も増えなければ Webhook が Function に届いていない
 
 ## 既知の制限
+
+- 通知の許可を後から切った端末も、トークンの行は有効のまま残る（無効にも削除もしない）。Function は送り続け、push_log には ok が残りうる（ok は Expo が受けた印で、届いた印ではない）
+- 同じ端末で利用者が替わったとき（つなぎ直す）は、次の利用者のトークンの登録（`register_push_token`）が持ち主を移す。サインアウトの前に前の利用者の行を外すが、保存したセッションが読めずにつなぎ直したときや通信に失敗したときは外せず、次の利用者が登録するまでの間は、前の利用者あての通知がその端末に届きうる
 
 - 送った直後の 1 件の取り直しに失敗すると、次に一覧を取り直すまで、その 1 件は端末の時刻の版で並ぶ（DB の時刻ではない。ずれるのは並び順だけ）
 - 端末に保存したセッションが読めなくなったときは、新しい利用者を作らずに起動画面のエラーで止まる（作ると元のペアから黙って外れるため）。電波の問題なら「もう一度」で戻るが、セッションが失われていた場合は、起動画面の「つなぎ直す」で新しい利用者として始め直す（相手の端末でも「つなぎ直す」を押して、もう一度番号で結ぶ）

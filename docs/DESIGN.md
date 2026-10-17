@@ -161,7 +161,7 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 
 ## 5. データモデル（Supabase / Postgres）
 
-表・制約・RLS・招待の関数・返信のトリガーの正本は [supabase/migrations/](../supabase/migrations/)（`20261016000000_init.sql` と Realtime の `20261016000001_realtime.sql`）。要点:
+表・制約・RLS・招待の関数・返信のトリガーの正本は [supabase/migrations/](../supabase/migrations/)（`20261016000000_init.sql`・Realtime の `20261016000001_realtime.sql`・通知のトークンの登録の `20261017000000_push_token_claim.sql`）。要点:
 
 - 表は profiles（auth.users と同じ id・役割）/ pairs（子が pending で作り、招待の引き換えで active）/ pair_invites・invite_attempts（招待と試行。クライアントからは読めない）/ consultations / replies / push_tokens / push_log
 - 守りは DB に置く（anon key はアプリに入るため）。全表に RLS を掛け、自分のペアの当事者だけが読める。相談を作れるのは親、返信できるのは子だけ
@@ -190,11 +190,16 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 
 ### プッシュ通知
 
-- 送る側は `supabase/functions/notify/`。中身の `core.ts` は Deno にも Node にも依存せず（fetch・時計・DB は引数で受ける）、`tests/notify.test.mjs` で検査する。Deno の入口 `index.ts` は秘密のヘッダ（`NOTIFY_WEBHOOK_SECRET`）を確かめ、service role の client を渡すだけ
+- 送る側は `supabase/functions/notify/`。中身の `core.ts` と入口の組み立ての `entry.ts`（秘密のヘッダ `NOTIFY_WEBHOOK_SECRET` を確かめてから本文を読み、service role の client から DB の出入りを作る）は Deno にも Node にも依存せず（fetch・環境変数・client は引数で受ける）、`tests/notify.test.mjs` で検査する。Deno の入口 `index.ts` は `Deno.env` と `Deno.serve` をつなぐだけ
+- Function はフォルダの外を import しない（Deno のデプロイが外を束ねる保証が無い）。種類の名前・アプリ名・通知の data の名前・チャンネルは、アプリの正本（`src/`）から `npm run gen:notify`（`scripts/gen-notify-shared.mjs`）が作る写し `shared.ts` を読む
+- 写しは生成物で手では直さない。正本とずれていれば `tests/notify-shared.test.mjs` が落ちる
 - consultations の INSERT なら子へ、UPDATE で waiting → answered になったら親へ送る（宛先は pairs の行から）。答えを開いた印の UPDATE では送らない。本文は断定の語を使わない
-- 送れなかったとき: 通信失敗・429・5xx は 1 秒・2 秒・4 秒と間を広げて 3 回まで再試行、400 は再試行しない。DeviceNotRegistered のトークンは disabled_at を埋め、以後は送らない。ticket は 1 件ずつ push_log に残す（届いたかの receipt は見ない）
-- アプリは開発ビルドの実機でだけ、つながったあとにトークンを取って push_tokens に upsert する（`src/data/pushTokens.native.ts`。Web 版の `pushTokens.ts` は expo-notifications を読まずに何もしない）。通知を押すと、親は答えの画面、子は相談の詳細を開く。サインアウトの前に自分のトークンの行を外す（token が主キーで、自分の行しか書けないため）
+- メッセージは優先度 high（Android の既定の normal は Doze 中に遅れる）、チャンネルはアプリが作る `default`
+- 送れなかったとき: 通信失敗・時間切れ（1 回 5 秒）・429・5xx は 1 秒・2 秒・4 秒と間を広げて 3 回まで再試行、400 と 2xx の読めない応答は再試行しない（後者は二重に届くのを避ける）。DeviceNotRegistered のトークンは disabled_at を埋め、以後は送らない。ticket は 1 件ずつ push_log に残し、無効化に失敗しても記録は書く（届いたかの receipt は見ない）。ペア・宛先・トークンが無くて送らなかったときも理由を 1 行残す
+- `EXPO_ACCESS_TOKEN`（Expo の送信に access token を求める設定）は MVP では任意。Function は秘密のヘッダで守り、トークンは RLS で持ち主と service role しか読めないので、まずは設定の手間を省く（設定したら Function が Bearer で付ける）
+- アプリは開発ビルドの実機でだけ、つながったあとにトークンを取って関数 `register_push_token` で登録する（手順は `src/data/pushRegistration.ts`、実物を渡すのは `src/data/pushTokens.native.ts`。Web 版の `pushTokens.ts` は expo-notifications を読まずに何もしない）。関数は前の利用者の行が残っていても持ち主を移す（token が主キーで、表には自分の行しか書けないため）。サインアウトの前にも自分の行を外す。通知を押すと、親は答えの画面、子は相談の詳細を開く
 - プッシュは補助の経路で、正本は DB。画面は Realtime と起動時・前面復帰の取り直しで追いつく
+- アプリが前面にあるときの通知は出さない（`setNotificationHandler` を置かない。expo-notifications の既定は「出さない」）。前面では Realtime が画面を更新する
 
 ### 送れなかったとき
 
