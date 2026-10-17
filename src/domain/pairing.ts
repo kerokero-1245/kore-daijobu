@@ -61,7 +61,7 @@ const REDEEM_MESSAGE: Record<Exclude<RedeemReason, "ok">, string> = {
   too_many_attempts:
     "まちがいが多いので、10分ほど待ってから、もう一度入れてください。",
   not_parent:
-    "このスマホは親のスマホになっていません。「最初からやり直す」を押してください。",
+    "このスマホは親のスマホになっていません。アプリを開き直して、「親のスマホ」を選び直してください。",
   already_paired: "このスマホは、もうつながっています。",
 };
 
