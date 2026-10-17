@@ -1,8 +1,14 @@
-// プッシュ通知の純関数（アプリと Edge Function の両方から読む）。
-// React・React Native・Expo・Deno に依存しない。import も置かない（Deno の入口からも、そのまま読めるように）。
+// プッシュ通知の純関数と、送る側と共有する値の正本。
+// アプリが読む。Edge Function（supabase/functions/notify）はこのファイルを読まず、
+// `npm run gen:notify` がここの値を写した supabase/functions/notify/shared.ts を読む。
+// React・React Native・Expo・Deno に依存しない。
 
-// 通知の data に入れる相談の id の名前（送る側 supabase/functions/notify/core.ts と、受ける側のアプリで共有）。
+// 通知の data に入れる相談の id の名前（送る側 core.ts と、受ける側のアプリで共有）。
 export const PUSH_DATA_KEY = "consultationId";
+
+// Android の通知チャンネル。アプリが作り、送る側はメッセージの channelId に同じ値を入れる。
+export const PUSH_CHANNEL_ID = "default";
+export const PUSH_CHANNEL_NAME = "相談と返事";
 
 // トークンを取ってよい環境か。開発ビルド（と本番のビルド）の実機だけ。
 // - Web は expo-notifications の対応先に無い。シミュレータ・エミュレータは扱わない（isDevice が false）

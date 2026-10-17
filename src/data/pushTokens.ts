@@ -6,7 +6,10 @@ import type { Backend } from "./backend";
 import type { PushRoute } from "../domain/push";
 import type { Role } from "../domain/pairing";
 
-export async function registerPushToken(_backend: Backend): Promise<void> {}
+export async function registerPushToken(
+  _backend: Backend,
+  _isCancelled?: () => boolean,
+): Promise<void> {}
 
 export function usePushNotifications(
   _backend: Backend | null,
