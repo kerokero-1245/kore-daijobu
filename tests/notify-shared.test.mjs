@@ -58,13 +58,33 @@ test("shared.ts のアプリ名・data の名前・チャンネルが src と同
   assert.equal(shared.PUSH_CHANNEL_ID, PUSH_CHANNEL_ID);
 });
 
+// import の指定子を拾う: `import x from "…"`・`export … from "…"`・from なしの `import "…"`・動的な `import("…")`。
+const IMPORT =
+  /(?:\bimport\s*\(\s*|\b(?:import|export)\b[^"'();]*?\bfrom\s*|\bimport\s+)["']([^"']+)["']/g;
+const specifiersOf = (text) => [...text.matchAll(IMPORT)].map((m) => m[1]);
+
+test("import の拾い方: from つき・from なし・動的・export from を全部拾う", () => {
+  assert.deepEqual(
+    specifiersOf(
+      [
+        'import { a } from "./a.ts";',
+        'import type { B } from "../b.ts";',
+        'import "../c.ts";',
+        'const d = await import("../d.ts");',
+        'export { e } from "./e.ts";',
+        'export * from "../f.ts";',
+      ].join("\n"),
+    ),
+    ["./a.ts", "../b.ts", "../c.ts", "../d.ts", "./e.ts", "../f.ts"],
+  );
+});
+
 test("Function のフォルダの .ts はフォルダの外を import しない（ファイルを動的に列挙・0 件なら失敗）", () => {
   const files = readdirSync(FUNCTION_DIR).filter((f) => f.endsWith(".ts"));
   assert.ok(files.length > 0, "Function のフォルダに .ts がありません");
-  const IMPORT = /(?:import|export)[^"']*?from\s*["']([^"']+)["']/g;
   for (const file of files) {
     const text = readFileSync(join(FUNCTION_DIR, file), "utf8");
-    for (const [, specifier] of text.matchAll(IMPORT)) {
+    for (const specifier of specifiersOf(text)) {
       if (!specifier.startsWith(".")) continue;
       const target = resolve(dirname(join(FUNCTION_DIR, file)), specifier);
       const rel = relative(FUNCTION_DIR, target);
