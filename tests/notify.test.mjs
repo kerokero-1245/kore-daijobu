@@ -5,7 +5,8 @@
 //   - 送るのは相手の有効なトークン（disabled_at が null）だけ。ticket を push_log に 1 件ずつ残す
 //   - 失敗: 通信失敗・429・5xx は間を広げて 3 回まで再試行、400 は再試行しない、
 //     DeviceNotRegistered はそのトークンの disabled_at を埋め、次からは送らない
-//   - 入口: 秘密のヘッダが違えば 401 で、DB にも Expo にも触れない
+//   - 入口: 秘密のヘッダが違えば 401 で、DB にも Expo にも触れない。入口の組み立て（entry.ts）は
+//     有効なトークン（disabled_at が null）だけを引く（偽の client と new Request() で確かめる）
 //   - アプリ側: トークンを取るのは開発ビルドの実機だけ / 通知を押したら役割ごとの画面 / トークンの保存
 // fetch・時計・待ち・DB は差し替える（本物の Supabase・Expo には接続しない）。
 import "./ts-resolve.mjs";
@@ -22,6 +23,7 @@ const {
   isAuthorized,
   notify,
 } = await import("../supabase/functions/notify/core.ts");
+const { handleRequest } = await import("../supabase/functions/notify/entry.ts");
 const {
   PUSH_DATA_KEY,
   canRegisterPush,
@@ -373,6 +375,9 @@ describe("notify: 秘密のヘッダ", () => {
       ["right-secret", undefined],
       ["", ""],
       ["right-secreT", "right-secret"],
+      // 秘密を先頭に含む長いヘッダ・秘密の途中までのヘッダ（長さの比較を外すと通ってしまう組）。
+      ["right-secret-extra", "right-secret"],
+      ["right-secre", "right-secret"],
     ]) {
       const r = await handleWebhook(
         { secretHeader: header, secret, bodyText: body },
@@ -416,14 +421,193 @@ describe("notify: 秘密のヘッダ", () => {
     assert.equal(r.status, 500);
   });
 
-  test("入口（index.ts）は秘密を環境変数 NOTIFY_WEBHOOK_SECRET から読み、core の判定に渡す", () => {
+  test("Deno の入口（index.ts）は entry.ts の handleRequest を Deno.serve に渡し、環境変数は Deno.env から読む", () => {
     const src = readFileSync(
       new URL("../supabase/functions/notify/index.ts", import.meta.url),
       "utf8",
     );
-    assert.ok(src.includes('Deno.env.get("NOTIFY_WEBHOOK_SECRET")'));
-    assert.ok(src.includes('Deno.env.get("EXPO_ACCESS_TOKEN")'));
-    assert.ok(src.includes("handleWebhook("));
+    assert.ok(src.includes("Deno.serve("));
+    assert.ok(src.includes("handleRequest(req,"));
+    assert.ok(src.includes("env: (name) => Deno.env.get(name)"));
+  });
+});
+
+// ---- 入口の組み立て（entry.ts）: 偽の client と new Request() ----
+
+// supabase-js の呼び出しを表ごとに記録する偽の client（tests/backend.test.mjs と同じ作り）。
+// responses[table] がその表への問い合わせの結果になる。
+function recordingDbClient(responses = {}) {
+  const calls = [];
+  const from = (table) => {
+    const rec = { table, ops: [] };
+    calls.push(rec);
+    const result = responses[table] ?? { data: null, error: null };
+    const builder = new Proxy(
+      {},
+      {
+        get(_, prop) {
+          if (prop === "then")
+            return (res, rej) => Promise.resolve(result).then(res, rej);
+          return (...args) => {
+            rec.ops.push([prop, ...args]);
+            return builder;
+          };
+        },
+      },
+    );
+    return builder;
+  };
+  return { calls, from };
+}
+
+describe("notify: 入口の組み立て（entry.ts）", () => {
+  const ENV = {
+    NOTIFY_WEBHOOK_SECRET: "right-secret",
+    SUPABASE_URL: "https://example.supabase.co",
+    SUPABASE_SERVICE_ROLE_KEY: "service-key",
+    EXPO_ACCESS_TOKEN: "expo-token",
+  };
+
+  function setup({ env = ENV, tokens } = {}) {
+    const client = recordingDbClient({
+      pairs: { data: { parent_id: PARENT, child_id: CHILD }, error: null },
+      push_tokens: {
+        data: tokens ?? [
+          { token: "ExponentPushToken[child-1]" },
+          { token: "ExponentPushToken[child-2]" },
+        ],
+        error: null,
+      },
+    });
+    const expo = fakeExpo(okTickets);
+    const created = [];
+    const deps = {
+      env: (name) => env[name],
+      createClient: (url, key) => {
+        created.push([url, key]);
+        return client;
+      },
+      fetch: expo.fetch,
+      now: () => NOW,
+      sleep: async () => {},
+    };
+    return { client, expo, created, deps };
+  }
+
+  const request = (headers, body = JSON.stringify(insertPayload())) =>
+    new Request("https://example.supabase.co/functions/v1/notify", {
+      method: "POST",
+      headers,
+      body,
+    });
+
+  test("有効なトークンだけを引く: push_tokens を token の列で、user_id と disabled_at is null で絞る", async () => {
+    const { client, deps } = setup();
+    const res = await handleRequest(
+      request({ "x-notify-secret": "right-secret" }),
+      deps,
+    );
+    assert.equal(res.status, 200);
+    const q = client.calls.filter(
+      (c) => c.table === "push_tokens" && c.ops[0]?.[0] === "select",
+    );
+    assert.equal(q.length, 1);
+    assert.deepEqual(q[0].ops, [
+      ["select", "token"],
+      ["eq", "user_id", CHILD],
+      ["is", "disabled_at", null],
+    ]);
+    const pair = client.calls.find((c) => c.table === "pairs");
+    assert.deepEqual(pair.ops, [
+      ["select", "parent_id, child_id"],
+      ["eq", "id", PAIR],
+      ["maybeSingle"],
+    ]);
+  });
+
+  test("秘密が無い・違う・未設定なら 401 で、client を作らず DB にも Expo にも触れない", async () => {
+    for (const [headers, env] of [
+      [{}, ENV],
+      [{ "x-notify-secret": "wrong-secret" }, ENV],
+      [{ "x-notify-secret": "right-secret-extra" }, ENV],
+      [
+        { "x-notify-secret": "right-secret" },
+        { ...ENV, NOTIFY_WEBHOOK_SECRET: undefined },
+      ],
+      // 秘密そのものを Webhook のヘッダの代わりに渡しても通らない（ヘッダは Request から読む）。
+      [{ "x-other": "right-secret" }, ENV],
+    ]) {
+      const { client, expo, created, deps } = setup({ env });
+      const res = await handleRequest(request(headers), deps);
+      assert.equal(res.status, 401);
+      assert.deepEqual(await res.json(), { error: "unauthorized" });
+      assert.deepEqual(created, []);
+      assert.deepEqual(client.calls, []);
+      assert.equal(expo.calls.length, 0);
+    }
+  });
+
+  test("正しい秘密なら送り、ticket を push_log に書く。EXPO_ACCESS_TOKEN は Bearer で付ける", async () => {
+    const { client, expo, created, deps } = setup();
+    const res = await handleRequest(
+      request({
+        "x-notify-secret": "right-secret",
+        "content-type": "application/json",
+      }),
+      deps,
+    );
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("content-type"), "application/json");
+    const body = await res.json();
+    assert.equal(body.sent, 2);
+    assert.deepEqual(created, [["https://example.supabase.co", "service-key"]]);
+    assert.equal(expo.calls.length, 1);
+    assert.equal(expo.calls[0].init.headers.authorization, "Bearer expo-token");
+    assert.deepEqual(
+      expo.calls[0].messages.map((m) => m.to),
+      ["ExponentPushToken[child-1]", "ExponentPushToken[child-2]"],
+    );
+    const log = client.calls.find((c) => c.table === "push_log");
+    assert.equal(log.ops[0][0], "insert");
+    assert.deepEqual(
+      log.ops[0][1].map((r) => r.ticket_id),
+      ["ticket-0", "ticket-1"],
+    );
+  });
+
+  test("DeviceNotRegistered のトークンは push_tokens の disabled_at を token で絞って埋める", async () => {
+    const { client, deps } = setup();
+    deps.fetch = fakeExpo((messages) => ({
+      status: 200,
+      body: {
+        data: messages.map((m, i) =>
+          i === 0
+            ? { status: "error", details: { error: "DeviceNotRegistered" } }
+            : { status: "ok", id: `ticket-${i}` },
+        ),
+      },
+    })).fetch;
+    await handleRequest(request({ "x-notify-secret": "right-secret" }), deps);
+    const upd = client.calls.find(
+      (c) => c.table === "push_tokens" && c.ops[0]?.[0] === "update",
+    );
+    assert.deepEqual(upd.ops, [
+      ["update", { disabled_at: new Date(NOW).toISOString() }],
+      ["in", "token", ["ExponentPushToken[child-1]"]],
+    ]);
+  });
+
+  test("SUPABASE_URL か service role の鍵が無ければ 500（Expo には送らない）", async () => {
+    const { expo, created, deps } = setup({
+      env: { ...ENV, SUPABASE_SERVICE_ROLE_KEY: undefined },
+    });
+    const res = await handleRequest(
+      request({ "x-notify-secret": "right-secret" }),
+      deps,
+    );
+    assert.equal(res.status, 500);
+    assert.deepEqual(created, []);
+    assert.equal(expo.calls.length, 0);
   });
 });
 
