@@ -14,13 +14,13 @@ import {
   space,
   verdictColor,
 } from "../theme";
-import type { Verdict } from "../types";
-import Emoji from "./Emoji";
+import type { IconName, Verdict } from "../types";
+import Icon from "./icons/Icon";
 
 type Props = {
   label: string;
   onPress: () => void;
-  emoji?: string;
+  icon?: IconName;
   sub?: string;
   disabled?: boolean;
 } & (
@@ -28,6 +28,9 @@ type Props = {
   | { variant: "primary" }
   | { variant: "verdict"; verdict: Verdict }
 );
+
+// 文字の左に置く絵の大きさ。
+const ICON_SIZE = 40;
 
 // 押せないときの濃さ。
 const DISABLED_OPACITY = 0.4;
@@ -49,7 +52,7 @@ function look(props: Props): { bg: string; fg: string; bordered: boolean } {
 }
 
 export default function BigButton(props: Props) {
-  const { label, onPress, emoji, sub, disabled = false } = props;
+  const { label, onPress, icon, sub, disabled = false } = props;
   const { bg, fg, bordered } = look(props);
   return (
     <Pressable
@@ -72,7 +75,11 @@ export default function BigButton(props: Props) {
       accessibilityState={{ disabled }}
     >
       <View style={styles.row}>
-        {emoji ? <Emoji>{emoji}</Emoji> : null}
+        {icon ? (
+          <View style={styles.icon}>
+            <Icon name={icon} size={ICON_SIZE} />
+          </View>
+        ) : null}
         <View style={styles.textWrap}>
           <Text style={[styles.label, { color: fg }]}>{label}</Text>
           {sub ? <Text style={[styles.sub, { color: fg }]}>{sub}</Text> : null}
@@ -95,6 +102,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   row: { ...layout.centerRow },
+  icon: { marginRight: space.md },
   textWrap: {
     flex: 1,
   },

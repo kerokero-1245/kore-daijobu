@@ -42,3 +42,26 @@ export interface AnsweredConsultation extends ConsultationBase {
 // status で reply の有無が決まる判別共用体。
 // 「返事待ちなのに reply がある」「答え済みなのに reply が無い」を型の上で作れなくする。
 export type Consultation = WaitingConsultation | AnsweredConsultation;
+
+// 自作の絵（src/components/icons/Icon.tsx）の名前。絵文字の代わりに、表や画面はこの名前で絵を指す。
+export type IconName =
+  | "parent" // 親（年配の人）
+  | "child" // 子（大人）
+  | "shield" // 盾（親ホームの大ボタン）
+  | "cat-money" // 種類: お金の話
+  | "cat-refund" // 種類: 還付金・税金
+  | "cat-construction" // 種類: 点検・工事・リフォーム
+  | "cat-impersonation" // 種類: 家族や役所を名乗る電話
+  | "cat-other" // 種類: その他
+  | "erase" // 消す
+  | "status-answered" // 返信済み
+  | "status-waiting" // 未対応
+  | "verdict-danger" // 判定: 詐欺かも
+  | "verdict-safe" // 判定: 大丈夫そう
+  | "verdict-unsure" // 判定: まだ分からない
+  | "entry-unseen" // 入口: 答えが届きました
+  | "entry-waiting" // 入口: 返事を待っています
+  | "entry-seen" // 入口: 確認ずみの答え
+  | "arrow-back" // もどる
+  | "connect" // つなぐ
+  | "timer"; // のこり時間

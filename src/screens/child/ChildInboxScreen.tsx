@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../../navigation/types";
-import Emoji from "../../components/Emoji";
+import Icon from "../../components/icons/Icon";
 import RepairLink from "../../components/RepairLink";
 import Screen from "../../components/Screen";
 import Spacer from "../../components/Spacer";
@@ -11,7 +11,7 @@ import SyncErrorNotice from "../../components/SyncErrorNotice";
 import StatusBadge, { STATUS_BADGE } from "../../components/StatusBadge";
 import { APP_NAME } from "../../constants";
 import { useStore } from "../../data/store";
-import { categoryEmoji, categoryLabel } from "../../domain/category";
+import { categoryIcon, categoryLabel } from "../../domain/category";
 import { formatTime } from "../../domain/time";
 import {
   colors,
@@ -69,7 +69,9 @@ export default function ChildInboxScreen({ navigation }: Props) {
               STATUS_BADGE[item.status].label
             }`}
           >
-            <Emoji>{categoryEmoji(item.category)}</Emoji>
+            <View style={styles.icon}>
+              <Icon name={categoryIcon(item.category)} size={40} />
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.category}>
                 {categoryLabel(item.category)}
@@ -106,6 +108,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: space.md,
   },
+  icon: { marginRight: space.md },
   category: { ...textStyle.bodyStrong },
   time: { ...textStyle.caption, marginTop: space.hair },
 });

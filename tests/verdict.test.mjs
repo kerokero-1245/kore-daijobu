@@ -13,11 +13,23 @@ import {
 import { MAX_REPLY_LENGTH } from "../src/domain/reply.ts";
 import { verdictColor } from "../src/theme.ts";
 
-test("判定ごとのラベルと見出しが、画面に出ている値と同じ", () => {
+test("判定ごとのラベル・見出し・絵の名前が、画面に出ている値と同じ", () => {
   assert.deepEqual(VERDICT_META, {
-    danger: { label: "詐欺かも", headline: "⚠️ 詐欺かもしれません" },
-    safe: { label: "大丈夫そう", headline: "✅ 大丈夫そうです" },
-    unsure: { label: "まだ分からない", headline: "🟡 いったん待って" },
+    danger: {
+      label: "詐欺かも",
+      headline: "詐欺かもしれません",
+      icon: "verdict-danger",
+    },
+    safe: {
+      label: "大丈夫そう",
+      headline: "大丈夫そうです",
+      icon: "verdict-safe",
+    },
+    unsure: {
+      label: "まだ分からない",
+      headline: "いったん待って",
+      icon: "verdict-unsure",
+    },
   });
 });
 

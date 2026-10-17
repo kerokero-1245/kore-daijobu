@@ -33,7 +33,7 @@ export default function CategorySelectScreen({ navigation }: Props) {
         <View key={c.key} style={{ marginBottom: space.md }}>
           <BigButton
             label={c.label}
-            emoji={c.emoji}
+            icon={c.icon}
             onPress={() => onSelect(c.key)}
           />
         </View>

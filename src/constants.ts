@@ -1,4 +1,4 @@
-import type { Verdict } from "./types";
+import type { IconName, Verdict } from "./types";
 
 // 名前に敬称を付けた呼び名。親の画面に子の名前を出すときは、この形にそろえる。
 export function callName(name: string): string {
@@ -25,14 +25,26 @@ export const REPLY_TEMPLATES: { verdict: Verdict; message: string }[] = [
 ];
 
 // 判定ごとの表示情報（1 か所）。Record なので、判定を足したときの書き漏れを型が検出する。
-// 色は theme.ts の verdictColor が持つ。
+// 色は theme.ts の verdictColor が持つ。見出しの前の印は絵（icon）で出す（絵文字は使わない）。
 export const VERDICT_META: Record<
   Verdict,
-  { label: string; headline: string }
+  { label: string; headline: string; icon: IconName }
 > = {
-  danger: { label: "詐欺かも", headline: "⚠️ 詐欺かもしれません" },
-  safe: { label: "大丈夫そう", headline: "✅ 大丈夫そうです" },
-  unsure: { label: "まだ分からない", headline: "🟡 いったん待って" },
+  danger: {
+    label: "詐欺かも",
+    headline: "詐欺かもしれません",
+    icon: "verdict-danger",
+  },
+  safe: {
+    label: "大丈夫そう",
+    headline: "大丈夫そうです",
+    icon: "verdict-safe",
+  },
+  unsure: {
+    label: "まだ分からない",
+    headline: "いったん待って",
+    icon: "verdict-unsure",
+  },
 };
 
 // 自由入力で返信するとき、子が選ぶ判定の表示順。

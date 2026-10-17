@@ -118,7 +118,12 @@ export default function ParentPairingScreen() {
       ))}
       <View style={styles.actions}>
         <View style={styles.action}>
-          <BigButton label="消す" emoji="⌫" onPress={erase} disabled={busy} />
+          <BigButton
+            label="消す"
+            icon="erase"
+            onPress={erase}
+            disabled={busy}
+          />
         </View>
         <View style={styles.action}>
           <BigButton

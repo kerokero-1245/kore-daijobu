@@ -62,7 +62,7 @@ export function verdictStyle(verdict: Verdict): {
 
 // 高齢者向けに全体的に大きめのフォント。
 export const font = {
-  hero: 64, // 大ボタンの絵文字
+  hero: 64, // 子の画面に出す番号
   huge: 40,
   title: 30,
   big: 24,

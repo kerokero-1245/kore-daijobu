@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
+import Icon from "../../components/icons/Icon";
 import RepairLink from "../../components/RepairLink";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
@@ -42,11 +43,11 @@ export default function ParentHomeScreen({ navigation }: Props) {
   const once = useOnce({ resetOnFocus: true });
 
   const renderEntry = (c: Consultation) => {
-    const { emoji, label } = entryLabel(c);
+    const { icon, label } = entryLabel(c);
     return (
       <View key={c.id} style={styles.entry}>
         <BigButton
-          emoji={emoji}
+          icon={icon}
           label={label}
           sub={`${categoryLabel(c.category)}・${formatTime(c.createdAt)}`}
           onPress={() =>
@@ -82,7 +83,9 @@ export default function ParentHomeScreen({ navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="これ大丈夫か相談する"
         >
-          <Text style={styles.bigButtonEmoji}>🛡️</Text>
+          <View style={styles.bigButtonIcon}>
+            <Icon name="shield" size={84} />
+          </View>
           <Text style={styles.bigButtonText}>{APP_NAME_TWO_LINES}</Text>
         </Pressable>
         <Text style={styles.sub}>
@@ -123,7 +126,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-  bigButtonEmoji: { fontSize: font.hero, marginBottom: space.sm },
+  bigButtonIcon: { marginBottom: space.sm },
   bigButtonText: {
     fontSize: font.title,
     fontWeight: "800",

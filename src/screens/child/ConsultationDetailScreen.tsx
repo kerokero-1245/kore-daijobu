@@ -13,12 +13,12 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
-import Emoji from "../../components/Emoji";
+import Icon from "../../components/icons/Icon";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import useOnce from "../../hooks/useOnce";
 import { REPLY_TEMPLATES, VERDICT_META, VERDICT_ORDER } from "../../constants";
-import { categoryEmoji, categoryLabel } from "../../domain/category";
+import { categoryIcon, categoryLabel } from "../../domain/category";
 import { answeredReply } from "../../domain/consultation";
 import { freeReplyErrors, MAX_REPLY_LENGTH } from "../../domain/reply";
 import { formatTime } from "../../domain/time";
@@ -87,9 +87,12 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
     const tone = verdictStyle(r.verdict);
     return (
       <View style={[styles.replyCard, tone.border]}>
-        <Text style={[styles.replyHeadline, tone.text]}>
-          {VERDICT_META[r.verdict].headline}
-        </Text>
+        <View style={styles.replyHeadlineRow}>
+          <Icon name={VERDICT_META[r.verdict].icon} size={32} />
+          <Text style={[styles.replyHeadline, tone.text]}>
+            {VERDICT_META[r.verdict].headline}
+          </Text>
+        </View>
         <Text style={styles.replyMessage}>{r.message}</Text>
         <Text style={styles.replyNote}>
           返信済み。親の画面にも表示されています。
@@ -102,7 +105,9 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
     <Screen scroll>
       <SyncErrorNotice message={syncError} />
       <View style={styles.header}>
-        <Emoji size="huge">{categoryEmoji(consultation.category)}</Emoji>
+        <View style={styles.headerIcon}>
+          <Icon name={categoryIcon(consultation.category)} size={48} />
+        </View>
         <View>
           <Text style={styles.category}>
             {categoryLabel(consultation.category)}
@@ -207,6 +212,7 @@ const styles = StyleSheet.create({
     ...layout.centerRow,
     marginBottom: space.lg,
   },
+  headerIcon: { marginRight: space.md },
   category: { ...textStyle.bigStrong },
   time: { ...textStyle.caption, marginTop: space.hair },
   info: { ...textStyle.body },
@@ -258,10 +264,14 @@ const styles = StyleSheet.create({
     padding: space.lg,
     alignItems: "center",
   },
+  replyHeadlineRow: {
+    ...layout.centerRow,
+    gap: space.s,
+    marginBottom: space.md,
+  },
   replyHeadline: {
     fontSize: font.big,
     fontWeight: "800",
-    marginBottom: space.md,
     textAlign: "center",
   },
   replyMessage: {

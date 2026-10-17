@@ -99,17 +99,17 @@ describe("親ホームの入口の種類・順位・文言", () => {
     );
   });
 
-  test("entryLabel: 種類ごとの絵文字と文言", () => {
+  test("entryLabel: 種類ごとの絵の名前と文言", () => {
     assert.deepEqual(entryLabel(unseen("u", 1)), {
-      emoji: "📩",
+      icon: "entry-unseen",
       label: "答えが届きました",
     });
     assert.deepEqual(entryLabel(waiting("w", 1)), {
-      emoji: "⏳",
+      icon: "entry-waiting",
       label: "返事を待っています",
     });
     assert.deepEqual(entryLabel(seen("s", 1)), {
-      emoji: "✔️",
+      icon: "entry-seen",
       label: "確認ずみの答え",
     });
   });

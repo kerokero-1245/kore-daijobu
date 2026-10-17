@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import HomeButton from "../../components/HomeButton";
+import Icon from "../../components/icons/Icon";
 import Spacer from "../../components/Spacer";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
@@ -55,6 +56,9 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
     const tone = verdictStyle(r.verdict);
     return (
       <>
+        <View style={styles.headlineIcon}>
+          <Icon name={VERDICT_META[r.verdict].icon} size={88} />
+        </View>
         <Text style={[styles.headline, tone.text]}>
           {VERDICT_META[r.verdict].headline}
         </Text>
@@ -112,6 +116,7 @@ const styles = StyleSheet.create({
     marginBottom: space.lg,
     textAlign: "center",
   },
+  headlineIcon: { marginBottom: space.sm },
   headline: {
     fontSize: font.title,
     fontWeight: "800",

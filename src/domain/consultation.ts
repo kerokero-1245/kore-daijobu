@@ -6,6 +6,7 @@ import type {
   AnsweredConsultation,
   Category,
   Consultation,
+  IconName,
   Reply,
   Verdict,
   WaitingConsultation,
@@ -55,14 +56,14 @@ export function pickEntries(consultations: Consultation[]): Consultation[] {
     .slice(0, MAX_ENTRIES);
 }
 
-const ENTRY_LABEL: Record<EntryKind, { emoji: string; label: string }> = {
-  unseenAnswer: { emoji: "📩", label: "答えが届きました" },
-  waiting: { emoji: "⏳", label: "返事を待っています" },
-  seenAnswer: { emoji: "✔️", label: "確認ずみの答え" },
+const ENTRY_LABEL: Record<EntryKind, { icon: IconName; label: string }> = {
+  unseenAnswer: { icon: "entry-unseen", label: "答えが届きました" },
+  waiting: { icon: "entry-waiting", label: "返事を待っています" },
+  seenAnswer: { icon: "entry-seen", label: "確認ずみの答え" },
 };
 
-// 親ホームの入口に出す絵文字と文言。
-export function entryLabel(c: Consultation): { emoji: string; label: string } {
+// 親ホームの入口に出す絵の名前と文言。
+export function entryLabel(c: Consultation): { icon: IconName; label: string } {
   return ENTRY_LABEL[entryKind(c)];
 }
 

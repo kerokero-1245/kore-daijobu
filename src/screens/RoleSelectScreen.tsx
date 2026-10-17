@@ -31,7 +31,7 @@ export default function RoleSelectScreen() {
       <View style={styles.buttons}>
         <BigButton
           label="親のスマホ"
-          emoji="👵"
+          icon="parent"
           sub="相談を送る側"
           variant="primary"
           onPress={() => choose("parent")}
@@ -39,7 +39,7 @@ export default function RoleSelectScreen() {
         <Spacer size="md" />
         <BigButton
           label="子のスマホ"
-          emoji="🧑"
+          icon="child"
           sub="相談に答える側（あなたのスマホ）"
           onPress={() => choose("child")}
         />
