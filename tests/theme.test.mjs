@@ -1,25 +1,33 @@
 // theme の基準値の「関係」を固定するテスト（値そのものは、前後の撮影の画素差で守る）。
+// なぜ: 色を見た目で決めると、補助文や淡い地の上で高齢の親に読めない組が紛れ込む。比は hex から計算して基準と照らす。
 // 守るもの:
-//   - theme.ts のコメントにある色の約束: 淡い地（dangerSoft / safeSoft）の上の danger / safe は 4.6:1 以上、
-//     枠線 border は背景に対して 3.1:1 以上（高齢の親が読める濃さ）
+//   - 画面で使う色の組（文字色・線 / 地色）が基準を満たすこと: 本文 4.5:1・大きな文字（24px 以上の太字）3:1・
+//     枠線と絵の線 3:1。組の表は下の PAIRS（デザインの色の表と同じ組）
+//   - colors の全色が、組の表か飾り（影・絵の色。上に文字を載せない）のどちらかに入っていること（色を足したら組も足す）
+//   - 押せる面の色の組（tone）: 文字は地の上で 4.5:1 以上、縁は画面の地（bg）に対して 3:1 以上。
+//     主ボタンの文字は primaryText（こげ茶）で、白い文字（onColor）は判定の色地の上だけに載せる
 //   - 行の高さが文字の大きさより大きいこと、文字の組（textStyle）が font と colors の値だけでできていること
 //   - 押している間の不透明度が 0〜1 の間にあること、space が小さい順に並んでいること
-//   - 色地の上に置く文字（onColor・primaryText）が、青地・判定の色地の上で読めること（4.5:1 以上）
 //   - verdictStyle が、判定の色を文字色と枠色の両方に同じ値で返すこと
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  borderWidth,
   colors,
   font,
   layout,
+  lift,
+  liftShadow,
   lineHeight,
   pressedOpacity,
   radius,
   size,
   space,
   textStyle,
+  tone,
   verdictColor,
+  verdictSoft,
   verdictStyle,
 } from "../src/theme.ts";
 
@@ -43,22 +51,139 @@ test("colors はすべて #RRGGBB", () => {
   }
 });
 
-test("淡い地の上の文字: danger は dangerSoft の上で、safe は safeSoft の上で 4.6:1 以上", () => {
-  assert.ok(contrast(colors.danger, colors.dangerSoft) >= 4.6);
-  assert.ok(contrast(colors.safe, colors.safeSoft) >= 4.6);
+// 基準（種別ごとの最小のコントラスト比）。
+const THRESHOLD = { 本文: 4.5, 大文字: 3.0, 枠線: 3.0 };
+
+// 画面で使う色の組 [文字色・線, 地色, 種別, 用途]。
+const PAIRS = [
+  ["text", "bg", "本文", "本文・見出し"],
+  ["text", "surface", "本文", "カードの文字・数字キー"],
+  ["subtext", "bg", "本文", "注記・時刻"],
+  ["subtext", "surface", "本文", "カードの補助文・入力欄の例文"],
+  ["primaryText", "primary", "本文", "主ボタンの文字（補助文 16px を含む）"],
+  ["link", "bg", "本文", "つなぎ直す"],
+  ["linkHover", "bg", "本文", "つなぎ直す（押している間）"],
+  ["onColor", "danger", "本文", "定型文ボタン 詐欺かも・送れなかった知らせ"],
+  ["onColor", "unsure", "本文", "定型文ボタン いったん待って"],
+  ["onColor", "safe", "本文", "定型文ボタン 大丈夫"],
+  ["danger", "surface", "本文", "判定の選択肢 詐欺かも・エラー文"],
+  ["danger", "bg", "本文", "エラー文（地は背景）"],
+  ["unsure", "surface", "本文", "判定の選択肢 まだ分からない"],
+  ["safe", "surface", "本文", "判定の選択肢 大丈夫そう"],
+  ["danger", "dangerSoft", "本文", "未対応バッジ・結果カード 詐欺かもの見出し"],
+  ["safe", "safeSoft", "本文", "返信済みバッジ・結果カード 大丈夫の見出し"],
+  ["unsure", "unsureSoft", "本文", "結果カード 不明の見出し"],
+  ["text", "dangerSoft", "本文", "結果カード 詐欺かもの文面"],
+  ["subtext", "dangerSoft", "本文", "結果カード 詐欺かもの差出人"],
+  ["text", "safeSoft", "本文", "結果カード 大丈夫の文面"],
+  ["subtext", "safeSoft", "本文", "結果カード 大丈夫の差出人"],
+  ["text", "unsureSoft", "本文", "結果カード 不明の文面"],
+  ["subtext", "unsureSoft", "本文", "結果カード 不明の差出人"],
+  ["text", "orangeSoft", "本文", "「消す」キーの文字"],
+  ["danger", "bg", "大文字", "結果の見出し 詐欺かもしれません"],
+  ["safe", "bg", "大文字", "結果の見出し 大丈夫そうです"],
+  ["unsure", "bg", "大文字", "結果の見出し いったん待って"],
+  ["primaryText", "primary", "大文字", "ホームの大ボタンの文字"],
+  ["border", "bg", "枠線", "カード・キーの枠（地は背景）"],
+  ["border", "surface", "枠線", "カード・キーの枠（地は面）"],
+  ["primaryEdge", "bg", "枠線", "主ボタンの縁"],
+  ["primaryEdge", "orangeSoft", "枠線", "相談中の輪"],
+  ["danger", "bg", "枠線", "結果カードの枠 詐欺かも"],
+  ["safe", "bg", "枠線", "結果カードの枠 大丈夫"],
+  ["unsure", "bg", "枠線", "結果カードの枠 不明"],
+  ["text", "orangeSoft", "枠線", "絵の線（橙の台）"],
+  ["text", "greenSoft", "枠線", "絵の線（緑の台）"],
+  ["text", "primary", "枠線", "絵の線（主ボタンの上）"],
+  ["onColor", "danger", "枠線", "判定の絵の白い線（赤）"],
+  ["onColor", "unsure", "枠線", "判定の絵の白い線（黄）"],
+  ["onColor", "safe", "枠線", "判定の絵の白い線（緑）"],
+];
+
+// 飾りの色（影・絵の中の色）。上に文字を載せないので、組の表には入れない。
+const DECORATIVE = [
+  "shade",
+  "dangerShade",
+  "unsureShade",
+  "safeShade",
+  "artHair",
+  "artGreen",
+  "artHeart",
+];
+
+test("色の組はどれも基準を満たす（本文 4.5:1・大きな文字 3:1・枠線 3:1。組の表から列挙・0 件なら失敗）", () => {
+  assert.ok(PAIRS.length > 0, "組が 0 件");
+  const fails = [];
+  for (const [fg, bg, kind, use] of PAIRS) {
+    assert.ok(colors[fg], `${use}: colors.${fg} が無い`);
+    assert.ok(colors[bg], `${use}: colors.${bg} が無い`);
+    const need = THRESHOLD[kind];
+    assert.ok(need, `${use}: 種別 ${kind} が基準に無い`);
+    const got = contrast(colors[fg], colors[bg]);
+    if (got < need)
+      fails.push(`${use}: ${fg}/${bg} = ${got.toFixed(2)}:1 < ${need}:1`);
+  }
+  assert.deepEqual(fails, []);
 });
 
-test("淡い色（〜Soft）は、対応する色と対で colors にある（colors から動的に列挙・0 件なら失敗）", () => {
-  const soft = Object.keys(colors).filter((k) => k.endsWith("Soft"));
-  assert.ok(soft.length > 0, "〜Soft の色が 0 件");
-  for (const name of soft) {
-    assert.ok(colors[name.replace(/Soft$/, "")], `${name} の元の色が無い`);
+test("colors の全色が、組の表か飾りの表のどちらかに入っている（colors から列挙・0 件なら失敗）", () => {
+  const names = Object.keys(colors);
+  assert.ok(names.length > 0, "colors が空");
+  const inPairs = new Set(PAIRS.flatMap(([fg, bg]) => [fg, bg]));
+  for (const name of names) {
+    assert.ok(
+      inPairs.has(name) || DECORATIVE.includes(name),
+      `${name} がどちらの表にも無い`,
+    );
+    assert.ok(
+      !(inPairs.has(name) && DECORATIVE.includes(name)),
+      `${name} が両方の表にある`,
+    );
+  }
+  for (const name of DECORATIVE) assert.ok(colors[name], `飾り ${name} が無い`);
+});
+
+test("押せる面の色の組（tone）: 文字は地の上で 4.5:1 以上、縁は画面の地に対して 3:1 以上（tone から列挙・0 件なら失敗）", () => {
+  const tones = Object.entries(tone);
+  assert.ok(tones.length > 0, "tone が空");
+  for (const [name, t] of tones) {
+    for (const key of ["bg", "fg", "edge", "shade"]) {
+      assert.ok(Object.values(colors).includes(t[key]), `${name}.${key}`);
+    }
+    assert.ok(contrast(t.fg, t.bg) >= 4.5, `${name}: 文字と地`);
+    assert.ok(contrast(t.edge, colors.bg) >= 3.0, `${name}: 縁と画面の地`);
   }
 });
 
-test("枠線 border は背景 bg にも surface にも 3.1:1 以上", () => {
-  assert.ok(contrast(colors.border, colors.bg) >= 3.1);
-  assert.ok(contrast(colors.border, colors.surface) >= 3.1);
+test("主ボタンの文字は primaryText（こげ茶）で、白い文字（onColor）は判定の色地だけに載せる", () => {
+  assert.equal(tone.primary.bg, colors.primary);
+  assert.equal(tone.primary.fg, colors.primaryText);
+  assert.equal(tone.primary.edge, colors.primaryEdge);
+  assert.notEqual(colors.primaryText, colors.onColor);
+  const verdicts = Object.keys(verdictColor);
+  assert.ok(verdicts.length > 0, "verdictColor が空");
+  for (const [name, t] of Object.entries(tone)) {
+    const isVerdict = verdicts.includes(name);
+    assert.equal(t.fg === colors.onColor, isVerdict, `${name}: 白い文字`);
+    if (isVerdict) assert.equal(t.bg, verdictColor[name], name);
+  }
+});
+
+test("判定の淡色（verdictSoft）は、判定の色と同じ判定を全部持ち、判定の色の文字が 4.5:1 以上で読める", () => {
+  const verdicts = Object.keys(verdictColor);
+  assert.ok(verdicts.length > 0, "verdictColor が空");
+  assert.deepEqual(Object.keys(verdictSoft).sort(), [...verdicts].sort());
+  for (const v of verdicts) {
+    assert.ok(contrast(verdictColor[v], verdictSoft[v]) >= 4.5, v);
+    assert.ok(contrast(colors.text, verdictSoft[v]) >= 4.5, v);
+  }
+});
+
+test("liftShadow は、ぼかさない影を下にだけ敷く（boxShadow の文字列）", () => {
+  assert.deepEqual(liftShadow(lift.md, colors.primaryEdge), {
+    boxShadow: `0px ${lift.md}px 0px ${colors.primaryEdge}`,
+  });
+  for (const v of [...Object.values(lift), ...Object.values(borderWidth)])
+    assert.ok(Number.isInteger(v) && v > 0);
 });
 
 test("lineHeight は font の同じ名前の段にあり、どれも文字の大きさより大きい（動的に列挙・0 件なら失敗）", () => {
@@ -100,16 +225,6 @@ test("space は小さい順に並び、radius・size・font はどれも正の�
   for (let i = 1; i < spaces.length; i++) assert.ok(spaces[i] > spaces[i - 1]);
   for (const group of [space, radius, size, font]) {
     for (const v of Object.values(group)) assert.ok(v > 0);
-  }
-});
-
-test("色地の上の文字: primaryText は青地の上で、onColor は青地と判定の色地（danger・safe・unsure）の上で 4.5:1 以上", () => {
-  assert.ok(contrast(colors.primaryText, colors.primary) >= 4.5);
-  const verdicts = Object.keys(verdictColor);
-  assert.ok(verdicts.length > 0, "verdictColor が空");
-  assert.ok(contrast(colors.onColor, colors.primary) >= 4.5);
-  for (const v of verdicts) {
-    assert.ok(contrast(colors.onColor, verdictColor[v]) >= 4.5, v);
   }
 });
 
