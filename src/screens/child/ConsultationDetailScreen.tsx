@@ -15,6 +15,7 @@ import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import Icon from "../../components/icons/Icon";
 import IconDisc from "../../components/icons/IconDisc";
+import RadioMark from "../../components/icons/RadioMark";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import useOnce from "../../hooks/useOnce";
@@ -182,13 +183,17 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
                     pressed && { opacity: pressedOpacity.item },
                   ]}
                 >
+                  <RadioMark
+                    selected={selected}
+                    color={selected ? colors.onColor : tint}
+                    size={24}
+                  />
                   <Text
                     style={[
                       styles.choiceText,
                       { color: selected ? colors.onColor : tint },
                     ]}
                   >
-                    {selected ? "● " : "○ "}
                     {label}
                   </Text>
                 </Pressable>
@@ -270,9 +275,11 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     paddingHorizontal: space.ms,
     minHeight: 56,
-    justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
   },
-  choiceText: { fontSize: font.body, fontWeight: "700" },
+  choiceText: { fontSize: font.body, fontWeight: "700", flexShrink: 1 },
   errors: { marginTop: space.xs, marginBottom: space.md },
   errorText: {
     ...textStyle.bodyStrong,
