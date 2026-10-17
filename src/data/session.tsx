@@ -107,6 +107,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [update],
   );
 
+  // 待つ間の保険の読み直しは、失敗しても画面に上げない（電波が数秒切れただけで番号の画面を消さない）。
+  const refreshQuietly = useCallback(
+    (): Promise<void> =>
+      readState().then(
+        (next) => {
+          if (next.status === "loading") {
+            console.warn(
+              "読み直しでペアを読めませんでした（次の回で読み直します）",
+            );
+            return;
+          }
+          update(next);
+        },
+        (e: unknown) => {
+          console.warn("読み直しに失敗しました（次の回で読み直します）", e);
+        },
+      ),
+    [update],
+  );
+
   useEffect(() => {
     if (backend) void load();
   }, [load]);
@@ -116,19 +136,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!waitingPairId) return;
     const stop = requireBackend().subscribePair(waitingPairId, (e) => {
-      if (e.kind !== "consultation") void load();
+      if (e.kind !== "consultation") void refreshQuietly();
     });
     const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") void load();
+      if (s === "active") void refreshQuietly();
     });
     // 購読が確立する前の更新は届かないため、待つ間は購読だけに頼らず数秒おきに読み直す。
-    const stopPoll = pollWhile(() => void load(), CHILD_WAIT_POLL_MS);
+    const stopPoll = pollWhile(() => void refreshQuietly(), CHILD_WAIT_POLL_MS);
     return () => {
       stop();
       sub.remove();
       stopPoll();
     };
-  }, [waitingPairId, load]);
+  }, [waitingPairId, refreshQuietly]);
 
   const chooseRole = useCallback(
     async (role: Role) => {
