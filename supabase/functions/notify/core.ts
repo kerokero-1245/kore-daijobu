@@ -8,11 +8,18 @@
 //   → consultations の INSERT なら宛先は子、UPDATE で waiting → answered になったら宛先は親
 //   → 宛先の有効なトークン（disabled_at が null）へ送り、ticket を push_log に 1 件ずつ記録
 //   → DeviceNotRegistered のトークンは disabled_at を埋め、以後は送らない
+//   → 送らなかったとき（ペア・宛先・トークンが無い）も、理由を push_log に 1 行残す
 // プッシュは届かないこともある補助の経路で、正本は DB（画面は Realtime と起動時の取り直しで追いつく）。
 
-// 種類の名前・アプリ名・data の名前は、同じフォルダの shared.ts（`npm run gen:notify` が src の正本から作る写し）から読む。
+// 種類の名前・アプリ名・data の名前・チャンネルは、同じフォルダの shared.ts
+// （`npm run gen:notify` がアプリの正本から作る写し）から読む。
 // Deno のデプロイが functions の外を束ねる保証が無いので、このフォルダの外は import しない。
-import { APP_NAME, CATEGORY_META, PUSH_DATA_KEY } from "./shared.ts";
+import {
+  APP_NAME,
+  CATEGORY_META,
+  PUSH_CHANNEL_ID,
+  PUSH_DATA_KEY,
+} from "./shared.ts";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 // Webhook に付ける秘密のヘッダの名前（値は環境変数 NOTIFY_WEBHOOK_SECRET と同じにする）。
@@ -22,6 +29,9 @@ export const MAX_RETRIES = 3;
 export const BASE_DELAY_MS = 1000;
 // Expo が 1 回の送信で受ける件数の上限。
 export const MAX_MESSAGES_PER_REQUEST = 100;
+// Expo への 1 回の送信を待つ上限。応答が無いまま Function が基盤の上限まで待たないように切る
+// （切れたら通信失敗として再試行する）。
+export const FETCH_TIMEOUT_MS = 5000;
 
 // ---- 外との出入り ----
 
@@ -32,7 +42,12 @@ export interface HttpResponseLike {
 
 export type FetchLike = (
   url: string,
-  init: { method: "POST"; headers: Record<string, string>; body: string },
+  init: {
+    method: "POST";
+    headers: Record<string, string>;
+    body: string;
+    signal?: AbortSignal;
+  },
 ) => Promise<HttpResponseLike>;
 
 export interface PairParties {
@@ -41,10 +56,11 @@ export interface PairParties {
 }
 
 // push_log の 1 行（列名は supabase/migrations/20261016000000_init.sql と同じ）。
+// status は Expo が受けたら ok、送れなかったら error、送らなかったら null（error に理由）。
 export interface PushLogRow {
   event: string;
   ticket_id: string | null;
-  status: "ok" | "error";
+  status: "ok" | "error" | null;
   error: string | null;
 }
 
@@ -59,7 +75,7 @@ export interface NotifyDeps {
   // トークンを無効にする（disabled_at を埋める）。
   disableTokens(tokens: string[], disabledAt: string): Promise<void>;
   writePushLog(rows: PushLogRow[]): Promise<void>;
-  // Expo の access token（送信に access token を求める設定のとき）。
+  // Expo の access token（EAS で送信に access token を求める設定にしたとき。MVP では任意）。
   expoAccessToken?: string;
 }
 
@@ -146,6 +162,10 @@ export interface ExpoMessage {
   body: string;
   data: Record<string, string>;
   sound: "default";
+  // Android の既定は normal で、Doze 中の端末では届くのが遅れる。電話の最中の相談なので high にする。
+  priority: "high";
+  // Android のチャンネル（アプリが作るものと同じ名前）。
+  channelId: string;
 }
 
 export function buildMessages(tokens: string[], e: NotifyEvent): ExpoMessage[] {
@@ -155,6 +175,8 @@ export function buildMessages(tokens: string[], e: NotifyEvent): ExpoMessage[] {
     body: e.body,
     data: { [PUSH_DATA_KEY]: e.consultationId },
     sound: "default",
+    priority: "high",
+    channelId: PUSH_CHANNEL_ID,
   }));
 }
 
@@ -178,8 +200,9 @@ async function errorOfResponse(res: HttpResponseLike): Promise<string> {
   }
 }
 
-// 1 回分（最大 100 件）を送る。通信失敗・429・5xx は間を広げて MAX_RETRIES 回まで再試行し、
+// 1 回分（最大 100 件）を送る。通信失敗・時間切れ・429・5xx は間を広げて MAX_RETRIES 回まで再試行し、
 // それ以外の失敗（400 など、送り方の誤り）は再試行しない。
+// 2xx で応答が読めないときも再試行しない（Expo は受けているかもしれず、送り直すと二重に届く）。
 export async function sendBatch(
   deps: NotifyDeps,
   messages: ExpoMessage[],
@@ -200,9 +223,15 @@ export async function sendBatch(
         method: "POST",
         headers,
         body,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (res.status >= 200 && res.status < 300) {
-        const json = await res.json();
+        let json: unknown;
+        try {
+          json = await res.json();
+        } catch {
+          return { ok: false, error: "応答が読めません" };
+        }
         const tickets =
           isRecord(json) && Array.isArray(json.data) ? json.data : null;
         return tickets
@@ -248,15 +277,30 @@ function readTicket(
   };
 }
 
+type SkipReason = "no_pair" | "no_recipient" | "no_tokens";
+
 export interface NotifyResult {
   event: string | null;
   sent: number; // Expo が受けた件数（ticket が ok）
   failed: number;
   disabled: number; // 無効にしたトークンの数
-  skipped?: "ignored" | "no_pair" | "no_recipient" | "no_tokens";
+  skipped?: "ignored" | SkipReason;
 }
 
 const NOTHING: NotifyResult = { event: null, sent: 0, failed: 0, disabled: 0 };
+
+// 送らなかった理由を push_log に 1 行残す（「トークンが保存されていない」と「Webhook が来ていない」を
+// push_log だけで見分けられるように）。知らせる出来事でないもの（ignored）は残さない。
+async function skip(
+  deps: NotifyDeps,
+  event: string,
+  reason: SkipReason,
+): Promise<NotifyResult> {
+  await deps.writePushLog([
+    { event, ticket_id: null, status: null, error: reason },
+  ]);
+  return { ...NOTHING, event, skipped: reason };
+}
 
 export async function notify(
   deps: NotifyDeps,
@@ -265,12 +309,11 @@ export async function notify(
   const e = eventFromPayload(payload);
   if (!e) return { ...NOTHING, skipped: "ignored" };
   const parties = await deps.getPairParties(e.pairId);
-  if (!parties) return { ...NOTHING, event: e.event, skipped: "no_pair" };
+  if (!parties) return skip(deps, e.event, "no_pair");
   const uid = recipientId(parties, e.recipient);
-  if (!uid) return { ...NOTHING, event: e.event, skipped: "no_recipient" };
+  if (!uid) return skip(deps, e.event, "no_recipient");
   const tokens = await deps.listActiveTokens(uid);
-  if (tokens.length === 0)
-    return { ...NOTHING, event: e.event, skipped: "no_tokens" };
+  if (tokens.length === 0) return skip(deps, e.event, "no_tokens");
 
   const rows: PushLogRow[] = [];
   const unregistered: string[] = [];
@@ -295,9 +338,20 @@ export async function notify(
     });
   }
 
-  if (unregistered.length > 0)
-    await deps.disableTokens(unregistered, new Date(deps.now()).toISOString());
+  // 無効化が失敗しても、Expo が受けた ticket の記録は残す（両方を試み、失敗はそのあとで投げる）。
+  let disableError: unknown = null;
+  if (unregistered.length > 0) {
+    try {
+      await deps.disableTokens(
+        unregistered,
+        new Date(deps.now()).toISOString(),
+      );
+    } catch (err) {
+      disableError = err;
+    }
+  }
   await deps.writePushLog(rows);
+  if (disableError !== null) throw disableError;
   return {
     event: e.event,
     sent: rows.filter((r) => r.status === "ok").length,

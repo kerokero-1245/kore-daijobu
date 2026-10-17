@@ -7,6 +7,9 @@ export const APP_NAME = "これ、大丈夫？";
 // 通知の data に入れる相談の id の名前（受ける側のアプリと同じ）。
 export const PUSH_DATA_KEY = "consultationId";
 
+// Android の通知チャンネル（アプリが作るものと同じ名前）。
+export const PUSH_CHANNEL_ID = "default";
+
 // 相談の種類ごとの表示名（通知の本文に使う）。
 export const CATEGORY_META = {
   construction: { label: "点検・工事・リフォーム" },

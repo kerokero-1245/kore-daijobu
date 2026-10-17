@@ -1,7 +1,7 @@
 // 通知の Edge Function が読む値の写し（supabase/functions/notify/shared.ts）を、src の正本から作る。
 // Deno のデプロイが supabase/functions の外のファイルを束ねる保証が無いので、Function は外を import しない。
 // 値の正本は src のまま 1 か所に保ち、Function の側にはこのスクリプトが書く写しだけを置く。
-// 使い方: npm run gen:notify（種類の名前・アプリ名・通知の data の名前を変えたら打つ）。
+// 使い方: npm run gen:notify（種類の名前・アプリ名・通知の data の名前・チャンネルを変えたら打つ）。
 // 写しが正本と一致することは tests/notify-shared.test.mjs が確かめる（打ち忘れると落ちる）。
 // 出力は決定的（キーは文字コードの順・末尾の改行は 1 つ）で、Prettier の整形のままの形にする。
 import "../tests/ts-resolve.mjs";
@@ -20,7 +20,8 @@ const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 export async function renderShared() {
   const { CATEGORY_META } = await import("../src/domain/category.ts");
   const { APP_NAME } = await import("../src/constants.ts");
-  const { PUSH_DATA_KEY } = await import("../src/domain/push.ts");
+  const { PUSH_CHANNEL_ID, PUSH_DATA_KEY } =
+    await import("../src/domain/push.ts");
 
   const keys = Object.keys(CATEGORY_META).sort();
   if (keys.length === 0) throw new Error("CATEGORY_META が空です");
@@ -33,6 +34,7 @@ export async function renderShared() {
   for (const [name, value] of [
     ["APP_NAME", APP_NAME],
     ["PUSH_DATA_KEY", PUSH_DATA_KEY],
+    ["PUSH_CHANNEL_ID", PUSH_CHANNEL_ID],
   ]) {
     if (typeof value !== "string")
       throw new Error(`${name} が文字列ではありません`);
@@ -47,6 +49,9 @@ export async function renderShared() {
     "",
     "// 通知の data に入れる相談の id の名前（受ける側のアプリと同じ）。",
     `export const PUSH_DATA_KEY = ${JSON.stringify(PUSH_DATA_KEY)};`,
+    "",
+    "// Android の通知チャンネル（アプリが作るものと同じ名前）。",
+    `export const PUSH_CHANNEL_ID = ${JSON.stringify(PUSH_CHANNEL_ID)};`,
     "",
     "// 相談の種類ごとの表示名（通知の本文に使う）。",
     "export const CATEGORY_META = {",

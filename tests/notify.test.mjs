@@ -2,9 +2,11 @@
 // 守るもの:
 //   - 宛先: 相談の INSERT は子へ、返信で waiting → answered になった UPDATE は親へ（pairs の行から決める）。
 //     答えを開いた印の UPDATE（answered → answered）では送らない
-//   - 送るのは相手の有効なトークン（disabled_at が null）だけ。ticket を push_log に 1 件ずつ残す
-//   - 失敗: 通信失敗・429・5xx は間を広げて 3 回まで再試行、400 は再試行しない、
-//     DeviceNotRegistered はそのトークンの disabled_at を埋め、次からは送らない
+//   - 送るのは相手の有効なトークン（disabled_at が null）だけ。ticket を push_log に 1 件ずつ残す。
+//     メッセージは priority high・チャンネル default。送らなかったときも理由を push_log に 1 行残す
+//   - 失敗: 通信失敗・時間切れ・429・5xx は 1・2・4 秒と間を広げて 3 回まで再試行、400 と 2xx の読めない応答は
+//     再試行しない、DeviceNotRegistered はそのトークンの disabled_at を埋め、次からは送らない。
+//     無効化に失敗しても push_log は書く。100 件を超えたら束に分け、ticket は束ごとに読む
 //   - 入口: 秘密のヘッダが違えば 401 で、DB にも Expo にも触れない。入口の組み立て（entry.ts）は
 //     有効なトークン（disabled_at が null）だけを引く（偽の client と new Request() で確かめる）
 //   - アプリ側: トークンを取るのは開発ビルドの実機だけ / 通知を押したら役割ごとの画面 / トークンの保存
@@ -16,8 +18,9 @@ import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
 const {
-  BASE_DELAY_MS,
   EXPO_PUSH_URL,
+  FETCH_TIMEOUT_MS,
+  MAX_MESSAGES_PER_REQUEST,
   MAX_RETRIES,
   handleWebhook,
   isAuthorized,
@@ -54,13 +57,20 @@ function fakeDb(tokens) {
 }
 
 // Expo の代わり。responder(messages, callIndex) が { status, body } か例外を返す。
+// { status, jsonThrows: true } なら応答の本文が読めない（json() が投げる）。
 function fakeExpo(responder) {
   const calls = [];
   const fetch = async (url, init) => {
     const messages = JSON.parse(init.body);
     calls.push({ url, init, messages });
     const r = await responder(messages, calls.length - 1);
-    return { status: r.status, json: async () => r.body };
+    return {
+      status: r.status,
+      json: async () => {
+        if (r.jsonThrows) throw new SyntaxError("Unexpected end of JSON input");
+        return r.body;
+      },
+    };
   };
   return { calls, fetch };
 }
@@ -129,14 +139,23 @@ describe("notify: 宛先と本文", () => {
     assert.equal(expo.calls.length, 1);
     assert.equal(expo.calls[0].url, EXPO_PUSH_URL);
     assert.equal(expo.calls[0].url, "https://exp.host/--/api/v2/push/send");
-    assert.deepEqual(
-      expo.calls[0].messages.map((m) => m.to),
-      ["ExponentPushToken[child-1]", "ExponentPushToken[child-2]"],
-    );
-    for (const m of expo.calls[0].messages) {
-      assert.equal(m.body, `親から相談：${CATEGORY_META.refund.label}`);
-      assert.deepEqual(m.data, { [PUSH_DATA_KEY]: CID });
-    }
+    // メッセージの形を全項目で固定する（項目の足し忘れ・消し忘れも止める）。
+    const message = (to) => ({
+      to,
+      title: "これ、大丈夫？",
+      body: `親から相談：${CATEGORY_META.refund.label}`,
+      data: { [PUSH_DATA_KEY]: CID },
+      sound: "default",
+      priority: "high",
+      channelId: "default",
+    });
+    assert.deepEqual(expo.calls[0].messages, [
+      message("ExponentPushToken[child-1]"),
+      message("ExponentPushToken[child-2]"),
+    ]);
+    assert.equal(expo.calls[0].init.method, "POST");
+    assert.ok(expo.calls[0].init.signal instanceof AbortSignal);
+    assert.equal(FETCH_TIMEOUT_MS, 5000);
     assert.equal(db.log.length, 2);
     assert.deepEqual(
       db.log.map((l) => [l.event, l.ticket_id, l.status, l.error]),
@@ -198,7 +217,7 @@ describe("notify: 宛先と本文", () => {
         assert.ok(!b.includes(w), `${b} に ${w}`);
   });
 
-  test("無効なトークンだけの相手には送らない（push_log も残さない）", async () => {
+  test("無効なトークンだけの相手には送らず、push_log に理由を 1 行残す", async () => {
     const db = fakeDb([
       { token: "ExponentPushToken[child-1]", user_id: CHILD, disabled_at: "x" },
     ]);
@@ -207,10 +226,17 @@ describe("notify: 宛先と本文", () => {
     const r = await notify(d, insertPayload());
     assert.equal(r.skipped, "no_tokens");
     assert.equal(expo.calls.length, 0);
-    assert.equal(db.log.length, 0);
+    assert.deepEqual(db.log, [
+      {
+        event: `consultation_created:${CID}`,
+        ticket_id: null,
+        status: null,
+        error: "no_tokens",
+      },
+    ]);
   });
 
-  test("ペアが無い・親がまだいないときは送らない", async () => {
+  test("ペアが無い・親がまだいないときは送らず、push_log に理由を残す", async () => {
     const db = fakeDb(TOKENS);
     const expo = fakeExpo(okTickets);
     const { deps: d } = deps(db, expo);
@@ -219,6 +245,13 @@ describe("notify: 宛先と本文", () => {
     db.pairs.set(PAIR, { parentId: null, childId: CHILD });
     assert.equal((await notify(d, answeredPayload())).skipped, "no_recipient");
     assert.equal(expo.calls.length, 0);
+    assert.deepEqual(
+      db.log.map((l) => [l.event, l.status, l.error]),
+      [
+        [`consultation_created:${CID}`, null, "no_pair"],
+        [`reply_arrived:${CID}`, null, "no_recipient"],
+      ],
+    );
   });
 
   test("EXPO_ACCESS_TOKEN があれば Authorization: Bearer を付け、無ければ付けない", async () => {
@@ -250,11 +283,7 @@ describe("notify: 再試行と無効化", () => {
     const r = await notify(d, insertPayload());
     assert.equal(MAX_RETRIES, 3);
     assert.equal(expo.calls.length, 1 + 3);
-    assert.deepEqual(sleeps, [
-      BASE_DELAY_MS,
-      BASE_DELAY_MS * 2,
-      BASE_DELAY_MS * 4,
-    ]);
+    assert.deepEqual(sleeps, [1000, 2000, 4000]);
     assert.equal(db.log.length, 2);
     for (const l of db.log) {
       assert.equal(l.status, "error");
@@ -280,6 +309,71 @@ describe("notify: 再試行と無効化", () => {
       db.log.map((l) => l.status),
       ["ok", "ok"],
     );
+  });
+
+  test("2xx で応答が読めなければ再試行せず（二重に送らない）、失敗を残す", async () => {
+    for (const r of [
+      { status: 200, jsonThrows: true },
+      { status: 200, body: { errors: [] } },
+    ]) {
+      const db = fakeDb(TOKENS);
+      const expo = fakeExpo(() => r);
+      const { deps: d, sleeps } = deps(db, expo);
+      const res = await notify(d, insertPayload());
+      assert.equal(expo.calls.length, 1);
+      assert.deepEqual(sleeps, []);
+      assert.deepEqual(
+        db.log.map((l) => [l.status, l.error]),
+        [
+          ["error", "応答が読めません"],
+          ["error", "応答が読めません"],
+        ],
+      );
+      assert.equal(res.failed, 2);
+    }
+  });
+
+  test("時間切れ（AbortSignal.timeout の中止）は通信失敗として再試行する", async () => {
+    const db = fakeDb(TOKENS);
+    const expo = fakeExpo((messages, i) => {
+      if (i === 0)
+        throw new DOMException(
+          "The operation was aborted due to timeout",
+          "TimeoutError",
+        );
+      return okTickets(messages);
+    });
+    const { deps: d, sleeps } = deps(db, expo);
+    const r = await notify(d, insertPayload());
+    assert.equal(expo.calls.length, 2);
+    assert.deepEqual(sleeps, [1000]);
+    assert.equal(r.sent, 2);
+  });
+
+  test("101 本なら 100 本と 1 本の束に分け、2 回目の束の ticket は 2 回目の応答から読む", async () => {
+    assert.equal(MAX_MESSAGES_PER_REQUEST, 100);
+    const many = Array.from({ length: 101 }, (_, i) => ({
+      token: `ExponentPushToken[c${i}]`,
+      user_id: CHILD,
+    }));
+    const db = fakeDb(many);
+    const expo = fakeExpo((messages, call) => ({
+      status: 200,
+      body: {
+        data: messages.map((_, j) => ({ status: "ok", id: `b${call}-${j}` })),
+      },
+    }));
+    const { deps: d } = deps(db, expo);
+    const r = await notify(d, insertPayload());
+    assert.deepEqual(
+      expo.calls.map((c) => c.messages.length),
+      [100, 1],
+    );
+    assert.equal(expo.calls[1].messages[0].to, "ExponentPushToken[c100]");
+    assert.equal(db.log.length, 101);
+    assert.equal(db.log[99].ticket_id, "b0-99");
+    assert.equal(db.log[100].ticket_id, "b1-0");
+    assert.equal(r.sent, 101);
   });
 
   test("400 は再試行しない", async () => {
@@ -337,6 +431,42 @@ describe("notify: 再試行と無効化", () => {
       expo.calls[1].messages.map((m) => m.to),
       ["ExponentPushToken[child-2]"],
     );
+  });
+
+  test("無効化が失敗しても push_log は書き、そのあと失敗を投げる（入口は 500）", async () => {
+    const db = fakeDb(TOKENS);
+    const expo = fakeExpo((messages) => ({
+      status: 200,
+      body: {
+        data: messages.map((_, i) =>
+          i === 0
+            ? { status: "error", details: { error: "DeviceNotRegistered" } }
+            : { status: "ok", id: `ticket-${i}` },
+        ),
+      },
+    }));
+    const { deps: d } = deps(db, expo, {
+      disableTokens: async () => {
+        throw new Error("push_tokens: boom");
+      },
+    });
+    await assert.rejects(notify(d, insertPayload()), /push_tokens: boom/);
+    assert.deepEqual(
+      db.log.map((l) => [l.status, l.ticket_id, l.error]),
+      [
+        ["error", null, "DeviceNotRegistered"],
+        ["ok", "ticket-1", null],
+      ],
+    );
+    const r = await handleWebhook(
+      {
+        secretHeader: "s",
+        secret: "s",
+        bodyText: JSON.stringify(insertPayload()),
+      },
+      () => d,
+    );
+    assert.equal(r.status, 500);
   });
 
   test("DeviceNotRegistered 以外の ticket の失敗ではトークンを無効にしない", async () => {

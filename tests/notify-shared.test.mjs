@@ -18,7 +18,8 @@ const { SHARED_PATH, renderShared } =
 const shared = await import("../supabase/functions/notify/shared.ts");
 const { CATEGORY_META } = await import("../src/domain/category.ts");
 const { APP_NAME } = await import("../src/constants.ts");
-const { PUSH_DATA_KEY } = await import("../src/domain/push.ts");
+const { PUSH_CHANNEL_ID, PUSH_DATA_KEY } =
+  await import("../src/domain/push.ts");
 
 const FUNCTION_DIR = fileURLToPath(
   new URL("../supabase/functions/notify/", import.meta.url),
@@ -51,9 +52,10 @@ test("shared.ts の種類の名前が src の CATEGORY_META と全件一致す�
   }
 });
 
-test("shared.ts のアプリ名と data の名前が src と同じ", () => {
+test("shared.ts のアプリ名・data の名前・チャンネルが src と同じ", () => {
   assert.equal(shared.APP_NAME, APP_NAME);
   assert.equal(shared.PUSH_DATA_KEY, PUSH_DATA_KEY);
+  assert.equal(shared.PUSH_CHANNEL_ID, PUSH_CHANNEL_ID);
 });
 
 test("Function のフォルダの .ts はフォルダの外を import しない（ファイルを動的に列挙・0 件なら失敗）", () => {
