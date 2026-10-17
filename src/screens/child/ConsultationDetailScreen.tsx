@@ -14,6 +14,7 @@ import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
 import Icon from "../../components/icons/Icon";
+import IconDisc from "../../components/icons/IconDisc";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import useOnce from "../../hooks/useOnce";
@@ -24,6 +25,7 @@ import { freeReplyErrors, MAX_REPLY_LENGTH } from "../../domain/reply";
 import { formatTime } from "../../domain/time";
 import type { Reply, Verdict } from "../../types";
 import {
+  borderWidth,
   colors,
   font,
   layout,
@@ -33,6 +35,7 @@ import {
   space,
   textStyle,
   verdictColor,
+  verdictSoft,
   verdictStyle,
 } from "../../theme";
 
@@ -86,7 +89,13 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
   const renderReply = (r: Reply) => {
     const tone = verdictStyle(r.verdict);
     return (
-      <View style={[styles.replyCard, tone.border]}>
+      <View
+        style={[
+          styles.replyCard,
+          tone.border,
+          { backgroundColor: verdictSoft[r.verdict] },
+        ]}
+      >
         <View style={styles.replyHeadlineRow}>
           <Icon name={VERDICT_META[r.verdict].icon} size={32} />
           <Text style={[styles.replyHeadline, tone.text]}>
@@ -105,10 +114,13 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
     <Screen scroll>
       <SyncErrorNotice message={syncError} />
       <View style={styles.header}>
-        <View style={styles.headerIcon}>
-          <Icon name={categoryIcon(consultation.category)} size={48} />
-        </View>
-        <View>
+        <IconDisc
+          name={categoryIcon(consultation.category)}
+          size={64}
+          iconSize={46}
+          bg={colors.orangeSoft}
+        />
+        <View style={styles.headerText}>
           <Text style={styles.category}>
             {categoryLabel(consultation.category)}
           </Text>
@@ -121,16 +133,18 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
       ) : (
         <>
           <Text style={styles.sectionTitle}>返信する（タップで送信）</Text>
-          {REPLY_TEMPLATES.map((t) => (
-            <View key={t.verdict} style={{ marginBottom: space.sm }}>
+          <View style={styles.templates}>
+            {REPLY_TEMPLATES.map((t) => (
               <BigButton
+                key={t.verdict}
                 label={t.message}
+                icon={VERDICT_META[t.verdict].icon}
                 variant="verdict"
                 verdict={t.verdict}
                 onPress={() => send(t.verdict, t.message)}
               />
-            </View>
-          ))}
+            ))}
+          </View>
 
           <Text style={styles.orText}>
             自分の言葉で返信（{MAX_REPLY_LENGTH}字まで）
@@ -145,7 +159,11 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
             multiline
           />
           <Text style={styles.choiceTitle}>判定を選ぶ</Text>
-          <View accessibilityRole="radiogroup" accessibilityLabel="判定">
+          <View
+            accessibilityRole="radiogroup"
+            accessibilityLabel="判定"
+            style={styles.choices}
+          >
             {VERDICT_ORDER.map((v) => {
               const selected = verdict === v;
               const tint = verdictColor[v];
@@ -210,16 +228,18 @@ export default function ConsultationDetailScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   header: {
     ...layout.centerRow,
-    marginBottom: space.lg,
+    gap: space.ms,
+    marginBottom: space.ml,
   },
-  headerIcon: { marginRight: space.md },
+  headerText: { flexShrink: 1 },
   category: { ...textStyle.bigStrong },
   time: { ...textStyle.caption, marginTop: space.hair },
   info: { ...textStyle.body },
   sectionTitle: {
     ...textStyle.bodyStrong,
-    marginBottom: space.md,
+    marginBottom: space.ms,
   },
+  templates: { gap: space.sm },
   orText: {
     ...textStyle.caption,
     marginTop: space.lg,
@@ -227,12 +247,14 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: borderWidth.normal,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: space.md,
+    borderRadius: radius.field,
+    paddingVertical: space.ms,
+    paddingHorizontal: space.md,
     ...textStyle.body,
-    minHeight: 96,
+    lineHeight: lineHeight.body,
+    minHeight: 104,
     textAlignVertical: "top",
     marginBottom: space.md,
   },
@@ -240,15 +262,15 @@ const styles = StyleSheet.create({
     ...textStyle.caption,
     marginBottom: space.sm,
   },
+  choices: { gap: space.sm, marginBottom: space.sm },
   choice: {
     backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderRadius: radius.md,
+    borderWidth: borderWidth.normal,
+    borderRadius: radius.choice,
     paddingVertical: space.sm,
-    paddingHorizontal: space.md,
+    paddingHorizontal: space.ms,
     minHeight: 56,
     justifyContent: "center",
-    marginBottom: space.sm,
   },
   choiceText: { fontSize: font.body, fontWeight: "700" },
   errors: { marginTop: space.xs, marginBottom: space.md },
@@ -258,9 +280,8 @@ const styles = StyleSheet.create({
     marginTop: space.xs,
   },
   replyCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderRadius: radius.lg,
+    borderWidth: borderWidth.strong,
+    borderRadius: radius.button,
     padding: space.lg,
     alignItems: "center",
   },

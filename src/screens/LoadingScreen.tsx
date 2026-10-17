@@ -30,7 +30,7 @@ export default function LoadingScreen() {
             {fatal ? null : <RepairLink />}
           </>
         ) : (
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.primaryEdge} />
         )}
       </View>
     </Screen>

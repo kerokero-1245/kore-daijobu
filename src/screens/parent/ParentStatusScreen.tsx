@@ -1,12 +1,13 @@
 import React, { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../../navigation/types";
 import Screen from "../../components/Screen";
 import HomeButton from "../../components/HomeButton";
 import Icon from "../../components/icons/Icon";
-import Spacer from "../../components/Spacer";
+import IconDisc from "../../components/icons/IconDisc";
+import WaitingRing from "../../components/WaitingRing";
 import SyncErrorNotice from "../../components/SyncErrorNotice";
 import { useStore } from "../../data/store";
 import { CHILD_CALL_NAME, VERDICT_META } from "../../constants";
@@ -14,12 +15,15 @@ import { categoryLabel } from "../../domain/category";
 import { answeredReply, isUnseenAnswer } from "../../domain/consultation";
 import type { Reply } from "../../types";
 import {
+  borderWidth,
   colors,
   font,
+  layout,
   lineHeight,
   radius,
   space,
   textStyle,
+  verdictSoft,
   verdictStyle,
 } from "../../theme";
 
@@ -43,7 +47,9 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
         <SyncErrorNotice message={syncError} />
         <View style={styles.center}>
           <Text style={styles.info}>相談が見つかりませんでした。</Text>
-          <HomeButton onPress={goHome} />
+          <View style={styles.home}>
+            <HomeButton onPress={goHome} />
+          </View>
         </View>
       </Screen>
     );
@@ -51,23 +57,38 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
 
   const reply = answeredReply(consultation);
 
-  // 子の答え（判定の色の見出し・色の枠のカード）。判定の色は verdictStyle で 1 回だけ引く。
+  // 子の答え（判定の絵と色の見出し・判定の淡色の地と色の枠のカード）。判定の色は verdictStyle で 1 回だけ引く。
   const renderReply = (r: Reply) => {
     const tone = verdictStyle(r.verdict);
     return (
       <>
-        <View style={styles.headlineIcon}>
+        <View style={styles.headlineBlock}>
           <Icon name={VERDICT_META[r.verdict].icon} size={88} />
+          <Text style={[styles.headline, tone.text]}>
+            {VERDICT_META[r.verdict].headline}
+          </Text>
         </View>
-        <Text style={[styles.headline, tone.text]}>
-          {VERDICT_META[r.verdict].headline}
-        </Text>
-        <View style={[styles.replyCard, tone.border]}>
+        <View
+          style={[
+            styles.replyCard,
+            tone.border,
+            { backgroundColor: verdictSoft[r.verdict] },
+          ]}
+        >
           <Text style={styles.replyMessage}>{r.message}</Text>
-          <Text style={styles.replyFrom}>{CHILD_CALL_NAME}より</Text>
+          <View style={styles.fromRow}>
+            <IconDisc
+              name="child"
+              size={32}
+              iconSize={26}
+              bg={colors.greenSoft}
+            />
+            <Text style={styles.replyFrom}>{CHILD_CALL_NAME}より</Text>
+          </View>
         </View>
-        <Spacer size="xl" />
-        <HomeButton onPress={goHome} />
+        <View style={styles.home}>
+          <HomeButton onPress={goHome} />
+        </View>
       </>
     );
   };
@@ -85,19 +106,16 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
           renderReply(reply)
         ) : (
           <>
-            <ActivityIndicator
-              size="large"
-              color={colors.primary}
-              style={{ marginVertical: space.lg }}
-            />
+            <WaitingRing icon="child" />
             <Text style={styles.waiting}>
               {CHILD_CALL_NAME}に{"\n"}相談しています…
             </Text>
             <Text style={styles.waitingSub}>
               返事が来るまで、相手には「ちょっと待ってね」と伝えて、電話は切って大丈夫です。
             </Text>
-            <Spacer size="xl" />
-            <HomeButton onPress={goHome} />
+            <View style={styles.home}>
+              <HomeButton onPress={goHome} />
+            </View>
           </>
         )}
       </View>
@@ -106,41 +124,41 @@ export default function ParentStatusScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  category: {
-    ...textStyle.bodySub,
-    marginBottom: space.md,
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: space.md,
   },
+  category: { ...textStyle.bodySub },
   info: {
     ...textStyle.body,
-    marginBottom: space.lg,
     textAlign: "center",
   },
-  headlineIcon: { marginBottom: space.sm },
+  headlineBlock: { alignItems: "center", gap: space.sm },
   headline: {
     fontSize: font.title,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: space.lg,
+    lineHeight: lineHeight.title,
   },
   replyCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderRadius: radius.lg,
-    paddingVertical: space.lg,
+    borderWidth: borderWidth.strong,
+    borderRadius: radius.button,
+    paddingTop: space.lg,
+    paddingBottom: space.md,
     paddingHorizontal: space.md,
     width: "100%",
     alignItems: "center",
+    gap: space.ms,
   },
   replyMessage: {
     ...textStyle.bigStrong,
     textAlign: "center",
     lineHeight: lineHeight.big,
   },
-  replyFrom: {
-    ...textStyle.caption,
-    marginTop: space.md,
-  },
+  fromRow: { ...layout.centerRow, gap: space.s },
+  replyFrom: { ...textStyle.caption },
   waiting: {
     fontSize: font.title,
     fontWeight: "700",
@@ -151,7 +169,7 @@ const styles = StyleSheet.create({
   waitingSub: {
     ...textStyle.bodySub,
     textAlign: "center",
-    marginTop: space.lg,
     lineHeight: lineHeight.body,
   },
+  home: { alignSelf: "stretch", marginTop: space.md },
 });

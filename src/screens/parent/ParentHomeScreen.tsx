@@ -20,8 +20,11 @@ import {
 import { formatTime } from "../../domain/time";
 import type { Consultation } from "../../types";
 import {
+  borderWidth,
   colors,
   font,
+  lift,
+  liftShadow,
   lineHeight,
   pressedOpacity,
   size,
@@ -45,7 +48,7 @@ export default function ParentHomeScreen({ navigation }: Props) {
   const renderEntry = (c: Consultation) => {
     const { icon, label } = entryLabel(c);
     return (
-      <View key={c.id} style={styles.entry}>
+      <View key={c.id}>
         <BigButton
           icon={icon}
           label={label}
@@ -74,20 +77,20 @@ export default function ParentHomeScreen({ navigation }: Props) {
 
       <View style={styles.wrap}>
         <Text style={styles.lead}>あやしい電話や訪問がありましたか？</Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.bigButton,
-            pressed && { opacity: pressedOpacity.item },
-          ]}
-          onPress={() => once(() => navigation.navigate("CategorySelect"))}
-          accessibilityRole="button"
-          accessibilityLabel="これ大丈夫か相談する"
-        >
-          <View style={styles.bigButtonIcon}>
+        <View style={styles.halo}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.bigButton,
+              pressed && { opacity: pressedOpacity.item },
+            ]}
+            onPress={() => once(() => navigation.navigate("CategorySelect"))}
+            accessibilityRole="button"
+            accessibilityLabel="これ大丈夫か相談する"
+          >
             <Icon name="shield" size={84} />
-          </View>
-          <Text style={styles.bigButtonText}>{APP_NAME_TWO_LINES}</Text>
-        </Pressable>
+            <Text style={styles.bigButtonText}>{APP_NAME_TWO_LINES}</Text>
+          </Pressable>
+        </View>
         <Text style={styles.sub}>
           ボタンを押すと{"\n"}
           {CHILD_CALL_NAME}に相談できます
@@ -110,40 +113,47 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, justifyContent: "center", alignItems: "center" },
   lead: {
     ...textStyle.body,
-    marginBottom: space.xl,
+    lineHeight: lineHeight.body,
+    marginBottom: space.ml,
     textAlign: "center",
+  },
+  // 大ボタンのまわりの淡い橙の輪。
+  halo: {
+    width: size.bigButtonHalo,
+    height: size.bigButtonHalo,
+    borderRadius: size.bigButtonHalo / 2,
+    backgroundColor: colors.orangeSoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
   bigButton: {
     width: size.bigButton,
     height: size.bigButton,
     borderRadius: size.bigButton / 2,
     backgroundColor: colors.primary,
+    borderWidth: borderWidth.strong,
+    borderColor: colors.primaryEdge,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    gap: space.sm,
+    // 下の影の厚みの分だけ上に上げて、輪の中で上下の見た目をそろえる。
+    marginTop: -lift.lg,
+    ...liftShadow(lift.lg, colors.primaryEdge),
   },
-  bigButtonIcon: { marginBottom: space.sm },
   bigButtonText: {
     fontSize: font.title,
     fontWeight: "800",
     color: colors.primaryText,
     textAlign: "center",
+    lineHeight: lineHeight.title,
   },
   sub: {
     ...textStyle.bodySub,
-    marginTop: space.xl,
+    marginTop: space.ml,
     textAlign: "center",
     lineHeight: lineHeight.body,
   },
-  unseen: { marginBottom: space.lg },
-  others: { marginTop: space.lg },
-  sectionTitle: {
-    ...textStyle.bodyStrong,
-    marginBottom: space.sm,
-  },
-  entry: { marginBottom: space.sm },
+  unseen: { marginBottom: space.ml, gap: space.sm },
+  others: { marginTop: space.ml, gap: space.sm },
+  sectionTitle: { ...textStyle.bodyStrong },
 });

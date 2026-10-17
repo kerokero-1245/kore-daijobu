@@ -29,15 +29,16 @@ export default function CategorySelectScreen({ navigation }: Props) {
   return (
     <Screen scroll>
       <Text style={styles.title}>どんな内容ですか？</Text>
-      {CATEGORIES.map((c) => (
-        <View key={c.key} style={{ marginBottom: space.md }}>
+      <View style={styles.list}>
+        {CATEGORIES.map((c) => (
           <BigButton
+            key={c.key}
             label={c.label}
             icon={c.icon}
             onPress={() => onSelect(c.key)}
           />
-        </View>
-      ))}
+        ))}
+      </View>
       <Text style={styles.note}>選ぶとすぐに相談が送られます</Text>
     </Screen>
   );
@@ -46,11 +47,12 @@ export default function CategorySelectScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   title: {
     ...textStyle.bigStrong,
-    marginBottom: space.md,
+    marginBottom: space.ml,
   },
+  list: { gap: space.ms },
   note: {
     ...textStyle.caption,
     textAlign: "center",
-    marginTop: space.sm,
+    marginTop: space.md,
   },
 });

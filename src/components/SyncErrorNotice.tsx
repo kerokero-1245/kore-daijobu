@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
   band: {
     alignSelf: "stretch",
     backgroundColor: colors.danger,
-    borderRadius: radius.md,
+    borderRadius: radius.choice,
     paddingVertical: space.md,
     paddingHorizontal: space.md,
     marginBottom: space.md,

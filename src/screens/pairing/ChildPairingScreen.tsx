@@ -6,16 +6,23 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
+import Icon from "../../components/icons/Icon";
+import IconDisc from "../../components/icons/IconDisc";
 import { useSession } from "../../data/session";
 import type { Invite } from "../../data/backend";
 import { formatRemaining } from "../../domain/pairing";
 import {
+  borderWidth,
   colors,
   font,
+  layout,
+  lift,
+  liftShadow,
   lineHeight,
   radius,
   space,
   textStyle,
+  tone,
 } from "../../theme";
 
 export default function ChildPairingScreen() {
@@ -65,9 +72,12 @@ export default function ChildPairingScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.lead}>
-        親のスマホで「親のスマホ」を選び、この番号を入れてください。
-      </Text>
+      <View style={styles.leadRow}>
+        <IconDisc name="child" size={64} iconSize={48} bg={colors.greenSoft} />
+        <Text style={styles.lead}>
+          親のスマホで「親のスマホ」を選び、この番号を入れてください。
+        </Text>
+      </View>
       <View style={styles.codeBox}>
         {invite ? (
           <Text
@@ -82,16 +92,19 @@ export default function ChildPairingScreen() {
             番号を出せませんでした。下のボタンで、もう一度ためしてください。
           </Text>
         ) : (
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.primaryEdge} />
         )}
+        {invite ? (
+          <View style={styles.remainingRow}>
+            {expired ? null : <Icon name="timer" size={24} />}
+            <Text style={styles.remaining}>
+              {expired
+                ? "期限が切れました。新しい番号を出してください。"
+                : `のこり ${formatRemaining(invite.expiresAt, now)}`}
+            </Text>
+          </View>
+        ) : null}
       </View>
-      {invite ? (
-        <Text style={styles.remaining}>
-          {expired
-            ? "期限が切れました。新しい番号を出してください。"
-            : `のこり ${formatRemaining(invite.expiresAt, now)}`}
-        </Text>
-      ) : null}
       <View style={styles.button}>
         <BigButton label="新しい番号を出す" variant="primary" onPress={issue} />
       </View>
@@ -100,20 +113,25 @@ export default function ChildPairingScreen() {
 }
 
 const styles = StyleSheet.create({
+  leadRow: { ...layout.centerRow, gap: space.ms, marginBottom: space.ml },
   lead: {
     ...textStyle.body,
     lineHeight: lineHeight.body,
-    marginBottom: space.lg,
+    flexShrink: 1,
   },
   codeBox: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    paddingVertical: space.xl,
+    backgroundColor: tone.card.bg,
+    borderWidth: borderWidth.normal,
+    borderColor: tone.card.edge,
+    borderRadius: radius.button,
+    paddingTop: space.xl,
+    paddingBottom: space.lg,
+    paddingHorizontal: space.sm,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 140,
+    gap: space.sm,
+    minHeight: 160,
+    ...liftShadow(lift.md, tone.card.shade),
   },
   code: {
     fontSize: font.hero,
@@ -123,10 +141,11 @@ const styles = StyleSheet.create({
   },
   codeExpired: { color: colors.subtext, textDecorationLine: "line-through" },
   info: { ...textStyle.body, textAlign: "center", paddingHorizontal: space.md },
+  remainingRow: { ...layout.centerRow, gap: space.s },
   remaining: {
     ...textStyle.bodySub,
     textAlign: "center",
-    marginTop: space.md,
+    flexShrink: 1,
   },
   button: { marginTop: space.xl },
 });

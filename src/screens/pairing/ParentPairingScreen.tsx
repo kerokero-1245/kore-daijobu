@@ -2,13 +2,17 @@
 // 6 桁そろうと「つなぐ」が押せるようになり、押すと送る。失敗したら理由を平易な 1 文で出し、入れた数字は残す
 // （1 桁だけ直して送り直せるように）。つながると親のホームへ切り替わる（App.tsx）。
 // 入力の状態と「つなぐ」を押せるかは src/domain/pairingInput.ts が決める（断られた番号は数字を変えるまで送れない）。
+// 低い画面でも「つなぐ」と「消す」がスクロール無しで見えるよう、キーの高さと余白は表示域の高さから決める
+// （src/domain/keypadLayout.ts）。失敗の理由は説明文の場所に出して、全体の高さを変えない。
 
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
+import Icon from "../../components/icons/Icon";
 import { useSession } from "../../data/session";
+import { keypadLayout } from "../../domain/keypadLayout";
 import { INVITE_CODE_LENGTH, redeemMessage } from "../../domain/pairing";
 import {
   beginSend,
@@ -20,16 +24,29 @@ import {
   type SendFailure,
 } from "../../domain/pairingInput";
 import {
+  borderWidth,
   colors,
   font,
+  layout,
+  lift,
+  liftShadow,
   lineHeight,
   pressedOpacity,
   radius,
   space,
   textStyle,
+  tone,
 } from "../../theme";
 
-const KEY_ROWS = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["0"]];
+// 数字キーの並び（電話と同じ）。4 段目は 空き・0・消す（ERASE）。
+const ERASE = "erase";
+const BLANK = "";
+const KEY_ROWS = [
+  ["1", "2", "3"],
+  ["4", "5", "6"],
+  ["7", "8", "9"],
+  [BLANK, "0", ERASE],
+];
 
 const SEND_ERROR = "送れませんでした。電波のよい所で、もう一度入れてください。";
 
@@ -44,6 +61,10 @@ export default function ParentPairingScreen() {
   const [now, setNow] = useState(() => Date.now());
   const { code, busy, failure, lockedUntil } = input;
   const message = failure ? failureMessage(failure) : null;
+  // 表示域（ヘッダーの下）の高さと、説明文（理由が出ていないとき）の高さ。キーの高さを決めるのに使う。
+  const [viewport, setViewport] = useState<number | null>(null);
+  const [descHeight, setDescHeight] = useState<number | null>(null);
+  const metrics = keypadLayout(viewport ?? Infinity, descHeight ?? 0);
 
   useEffect(() => {
     if (lockedUntil === null) return;
@@ -70,117 +91,155 @@ export default function ParentPairingScreen() {
 
   const erase = () => setInput(eraseDigit);
 
+  const key = { minHeight: metrics.keyHeight };
   return (
-    <Screen scroll>
-      <Text style={styles.lead}>
-        子のスマホに出ている 6 桁の番号を入れてください
-      </Text>
-      <Text style={styles.note}>
-        はじめの設定です。子どもがこのスマホで入れます。
-      </Text>
+    <Screen scroll padY={metrics.pad} onViewportHeight={setViewport}>
+      <View style={{ gap: metrics.gap }}>
+        {/* 説明文の場所。理由が出たら説明文に替えて出し、高さは説明文のときのまま保つ。
+            外側は常に置いておき、中身が変わったら Android が読み上げる（live region） */}
+        <View
+          accessibilityLiveRegion="assertive"
+          style={message && descHeight ? { minHeight: descHeight } : null}
+          onLayout={
+            message
+              ? undefined
+              : (e) => setDescHeight(e.nativeEvent.layout.height)
+          }
+        >
+          {message ? (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {message}
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.lead}>
+                子のスマホに出ている 6 桁の番号を入れてください
+              </Text>
+              <Text style={styles.note}>
+                はじめの設定です。子どもがこのスマホで入れます。
+              </Text>
+            </>
+          )}
+        </View>
 
-      <View
-        style={styles.slots}
-        accessibilityLabel={`入れた番号 ${code.split("").join(" ")}`}
-      >
-        {Array.from({ length: INVITE_CODE_LENGTH }, (_, i) => (
-          <View key={i} style={styles.slot}>
-            <Text style={styles.slotText}>{code[i] ?? ""}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View accessibilityLiveRegion="assertive">
-        {message ? (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {message}
-          </Text>
-        ) : null}
-      </View>
-
-      {KEY_ROWS.map((row) => (
-        <View key={row.join("")} style={styles.keyRow}>
-          {row.map((d) => (
-            <Pressable
-              key={d}
-              onPress={() => press(d)}
-              accessibilityRole="button"
-              accessibilityLabel={d}
-              style={({ pressed }) => [
-                styles.key,
-                pressed && { opacity: pressedOpacity.button },
-              ]}
-            >
-              <Text style={styles.keyText}>{d}</Text>
-            </Pressable>
+        <View
+          style={styles.slots}
+          accessibilityLabel={`入れた番号 ${code.split("").join(" ")}`}
+        >
+          {Array.from({ length: INVITE_CODE_LENGTH }, (_, i) => (
+            <View key={i} style={[styles.slot, { height: metrics.slotHeight }]}>
+              <Text style={styles.slotText}>{code[i] ?? ""}</Text>
+            </View>
           ))}
         </View>
-      ))}
-      <View style={styles.actions}>
-        <View style={styles.action}>
-          <BigButton
-            label="消す"
-            icon="erase"
-            onPress={erase}
-            disabled={busy}
-          />
+
+        <View style={{ gap: metrics.keyGap }}>
+          {KEY_ROWS.map((row) => (
+            <View
+              key={row.join("-")}
+              style={[styles.keyRow, { gap: metrics.keyGap }]}
+            >
+              {row.map((d) =>
+                d === BLANK ? (
+                  <View key="blank" style={styles.keySpace} />
+                ) : d === ERASE ? (
+                  <Pressable
+                    key={d}
+                    onPress={erase}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel="消す"
+                    accessibilityState={{ disabled: busy }}
+                    style={({ pressed }) => [
+                      styles.key,
+                      styles.eraseKey,
+                      key,
+                      busy && styles.keyDisabled,
+                      pressed && { opacity: pressedOpacity.button },
+                    ]}
+                  >
+                    <Icon name="erase" size={30} />
+                    <Text style={styles.eraseText}>消す</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    key={d}
+                    onPress={() => press(d)}
+                    accessibilityRole="button"
+                    accessibilityLabel={d}
+                    style={({ pressed }) => [
+                      styles.key,
+                      key,
+                      pressed && { opacity: pressedOpacity.button },
+                    ]}
+                  >
+                    <Text style={styles.keyText}>{d}</Text>
+                  </Pressable>
+                ),
+              )}
+            </View>
+          ))}
         </View>
-        <View style={styles.action}>
-          <BigButton
-            label="つなぐ"
-            variant="primary"
-            onPress={submit}
-            disabled={!canSend(input, now)}
-          />
-        </View>
+
+        <BigButton
+          label="つなぐ"
+          icon="connect"
+          center
+          variant="primary"
+          minHeight={metrics.buttonHeight}
+          onPress={submit}
+          disabled={!canSend(input, now)}
+        />
       </View>
     </Screen>
   );
 }
 
+// 押せないときの濃さ（BigButton と同じ）。
+const DISABLED_OPACITY = 0.4;
+
 const styles = StyleSheet.create({
   lead: { ...textStyle.bodyStrong, lineHeight: lineHeight.body },
-  note: { ...textStyle.caption, marginTop: space.xs, marginBottom: space.md },
-  slots: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: space.sm,
+  note: {
+    ...textStyle.caption,
+    lineHeight: lineHeight.small,
+    marginTop: space.xs,
   },
+  error: {
+    ...textStyle.bodyStrong,
+    color: colors.danger,
+    lineHeight: lineHeight.body,
+  },
+  slots: { flexDirection: "row", gap: space.s },
   slot: {
-    width: 46,
-    height: 60,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
+    flex: 1,
+    borderRadius: radius.slot,
+    borderWidth: borderWidth.normal,
+    borderColor: colors.primaryEdge,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
   slotText: { fontSize: font.title, fontWeight: "800", color: colors.text },
-  error: {
-    ...textStyle.bodyStrong,
-    color: colors.danger,
-    lineHeight: lineHeight.body,
-    marginBottom: space.sm,
-  },
-  keyRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: space.sm,
-    marginTop: space.sm,
-  },
+  keyRow: { flexDirection: "row" },
+  keySpace: { flex: 1 },
   key: {
     flex: 1,
-    maxWidth: 104,
-    minHeight: 72,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderRadius: radius.key,
+    borderWidth: borderWidth.normal,
+    borderColor: tone.card.edge,
+    backgroundColor: tone.card.bg,
     alignItems: "center",
     justifyContent: "center",
+    ...liftShadow(lift.sm, tone.card.shade),
   },
   keyText: { fontSize: font.title, fontWeight: "700", color: colors.text },
-  actions: { flexDirection: "row", gap: space.sm, marginTop: space.md },
-  action: { flex: 1 },
+  eraseKey: {
+    ...layout.centerRow,
+    justifyContent: "center",
+    gap: space.xs,
+    backgroundColor: colors.orangeSoft,
+  },
+  keyDisabled: { opacity: DISABLED_OPACITY },
+  eraseText: { ...textStyle.bodyStrong },
 });

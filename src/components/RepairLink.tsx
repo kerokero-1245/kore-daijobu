@@ -20,7 +20,11 @@ export default function RepairLink() {
         accessibilityRole="link"
         style={styles.link}
       >
-        <Text style={styles.text}>つなぎ直す</Text>
+        {({ pressed }) => (
+          <Text style={[styles.text, pressed && styles.pressed]}>
+            つなぎ直す
+          </Text>
+        )}
       </Pressable>
     );
   }
@@ -51,14 +55,15 @@ export default function RepairLink() {
 }
 
 const styles = StyleSheet.create({
-  link: { alignSelf: "center", padding: space.sm, marginTop: space.lg },
+  link: { alignSelf: "center", padding: space.sm, marginTop: space.md },
   text: {
     ...textStyle.caption,
-    color: colors.primary,
+    color: colors.link,
     textDecorationLine: "underline",
   },
+  pressed: { color: colors.linkHover },
   danger: { color: colors.danger },
-  ask: { marginTop: space.lg, alignItems: "center" },
+  ask: { marginTop: space.md, alignItems: "center" },
   question: {
     ...textStyle.caption,
     textAlign: "center",

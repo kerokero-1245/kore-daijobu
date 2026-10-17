@@ -97,6 +97,19 @@ export const textStyle = defineStyles({
   bigStrong: { fontSize: font.big, fontWeight: "700", color: colors.text },
 });
 
+// 画面の上のヘッダー帯（画面の組の見た目。src/components/Screen.tsx が各画面に当てる）。
+// 地は画面と同じクリームで境目の線なし、題と戻るの矢印はこげ茶。
+export const headerLook = {
+  headerStyle: { backgroundColor: colors.bg },
+  headerShadowVisible: false,
+  headerTintColor: colors.text,
+  headerTitleStyle: {
+    fontSize: font.body,
+    fontWeight: "700" as const,
+    color: colors.text,
+  },
+};
+
 // 横に並べて、縦は中央にそろえる（絵文字 + 文字の行など）。
 export const layout = defineStyles({
   centerRow: { flexDirection: "row", alignItems: "center" },
@@ -160,8 +173,6 @@ export const space = {
 
 // 角丸。部品の役割ごとの値（小さい部品ほど小さく）。
 export const radius = {
-  md: 16,
-  lg: 24,
   slot: 18, // 番号の 1 桁の枠
   choice: 20, // 判定の選択肢
   field: 24, // 入力欄

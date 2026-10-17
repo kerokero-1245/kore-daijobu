@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../../navigation/types";
-import Icon from "../../components/icons/Icon";
+import IconDisc from "../../components/icons/IconDisc";
 import RepairLink from "../../components/RepairLink";
 import Screen from "../../components/Screen";
 import Spacer from "../../components/Spacer";
@@ -14,13 +14,17 @@ import { useStore } from "../../data/store";
 import { categoryIcon, categoryLabel } from "../../domain/category";
 import { formatTime } from "../../domain/time";
 import {
+  borderWidth,
   colors,
   layout,
+  lift,
+  liftShadow,
   lineHeight,
   pressedOpacity,
   radius,
   space,
   textStyle,
+  tone,
 } from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChildInbox">;
@@ -69,10 +73,13 @@ export default function ChildInboxScreen({ navigation }: Props) {
               STATUS_BADGE[item.status].label
             }`}
           >
-            <View style={styles.icon}>
-              <Icon name={categoryIcon(item.category)} size={40} />
-            </View>
-            <View style={{ flex: 1 }}>
+            <IconDisc
+              name={categoryIcon(item.category)}
+              size={52}
+              iconSize={38}
+              bg={colors.orangeSoft}
+            />
+            <View style={styles.rowText}>
               <Text style={styles.category}>
                 {categoryLabel(item.category)}
               </Text>
@@ -102,13 +109,15 @@ const styles = StyleSheet.create({
   },
   row: {
     ...layout.centerRow,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: space.md,
+    gap: space.ms,
+    backgroundColor: tone.card.bg,
+    borderRadius: radius.key,
+    borderWidth: borderWidth.normal,
+    borderColor: tone.card.edge,
+    padding: space.ms,
+    ...liftShadow(lift.sm, tone.card.shade),
   },
-  icon: { marginRight: space.md },
+  rowText: { flex: 1, minWidth: 0 },
   category: { ...textStyle.bodyStrong },
   time: { ...textStyle.caption, marginTop: space.hair },
 });
