@@ -23,7 +23,7 @@ export interface NewConsultationRow {
 }
 
 // ペアの変化の知らせ。consultation は 1 件の作成・更新、pair はペアの状態の変化、
-// resync は購読をつなぎ直したとき（取りこぼしがありうるので一覧を取り直す）。
+// resync は購読がつながったとき・変更の配信が始まったとき（取りこぼしがありうるので一覧を取り直す）。
 export type PairChange =
   { kind: "consultation"; id: string } | { kind: "pair" } | { kind: "resync" };
 

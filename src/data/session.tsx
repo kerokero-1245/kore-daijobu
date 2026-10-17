@@ -17,6 +17,7 @@ import { AppState } from "react-native";
 
 import { backend, requireBackend } from "./backendInstance";
 import type { Invite, RedeemResult } from "./backend";
+import { pollWhile } from "./poll";
 import { sessionStatusOf, type PairInfo, type Role } from "../domain/pairing";
 
 export type SessionState =
@@ -44,6 +45,9 @@ const LOAD_ERROR =
 
 const CONFIG_ERROR =
   "設定がありません。このアプリは、まだ使える状態になっていません。";
+
+// 子が親を待つ間に読み直す間隔。
+const CHILD_WAIT_POLL_MS = 5000;
 
 const INITIAL: SessionState = backend
   ? { status: "loading" }
@@ -107,7 +111,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (backend) void load();
   }, [load]);
 
-  // 子は、親の端末で番号が入って pairs が active になるのを待つ。前面に戻ったときも読み直す。
+  // 子は、親の端末で番号が入って pairs が active になるのを待つ。前面に戻ったときと、待つ間は数秒おきにも読み直す。
   const waitingPairId = state.status === "child_unpaired" ? state.pairId : null;
   useEffect(() => {
     if (!waitingPairId) return;
@@ -117,9 +121,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") void load();
     });
+    // 購読が確立する前の更新は届かないため、待つ間は購読だけに頼らず数秒おきに読み直す。
+    const stopPoll = pollWhile(() => void load(), CHILD_WAIT_POLL_MS);
     return () => {
       stop();
       sub.remove();
+      stopPoll();
     };
   }, [waitingPairId, load]);
 

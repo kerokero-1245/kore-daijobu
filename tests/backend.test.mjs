@@ -6,6 +6,7 @@
 //   - FakeBackend の書き込みの役割の検査（相談は親だけ・返信は子だけで 1 回・他人には 0 行）と、
 //     返信で status が answered になること・別の端末の書き込みが購読に届くこと
 //   - SupabaseBackend が呼ぶ表名・関数名・filter・チャンネル名（呼び出しを記録する偽の client で検査）と、
+//     購読がつながったとき・変更の配信が始まったとき（system の status ok）に一覧を取り直す知らせを出すことと、
 //     その表名・関数名が移行 SQL に実在し、購読する表が publication に入っていること
 //   - ペアリングの純関数（起動時の状態・残り時間・失敗の文言）
 import "./ts-resolve.mjs";
@@ -398,6 +399,25 @@ function recordingClient(responses = {}) {
   };
 }
 
+// 表の変更を聞く listener（system など表を持たないものを除く）。
+function pgListeners(ch) {
+  return ch.listeners.filter((l) => l.type === "postgres_changes");
+}
+
+// 配信が始まったときの system メッセージ（本物の Realtime のフレームで実測した形）。
+const SYSTEM_SUBSCRIBED = {
+  message: "Subscribed to PostgreSQL",
+  status: "ok",
+  extension: "postgres_changes",
+  channel: `pair:${PAIR}`,
+};
+
+function systemListener(ch) {
+  const ls = ch.listeners.filter((l) => l.type === "system");
+  assert.equal(ls.length, 1, "system の listener は 1 つ");
+  return ls[0];
+}
+
 async function driveAll(client) {
   const b = new SupabaseBackend(client);
   assert.equal(await b.signIn(), UID);
@@ -462,7 +482,7 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
     );
     const rpcs = new Set(client.calls.filter((c) => c.rpc).map((c) => c.rpc));
     for (const ch of client.channels)
-      for (const l of ch.listeners) tables.add(l.filter.table);
+      for (const l of pgListeners(ch)) tables.add(l.filter.table);
     assert.ok(tables.size > 0 && rpcs.size > 0, "0 件なら検査になっていない");
     for (const t of tables)
       assert.ok(ALL_SQL.includes(`create table public.${t} (`), `表 ${t}`);
@@ -474,7 +494,7 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
     const client = recordingClient();
     await driveAll(client);
     const tables = client.channels.flatMap((ch) =>
-      ch.listeners.map((l) => l.filter.table),
+      pgListeners(ch).map((l) => l.filter.table),
     );
     assert.ok(tables.length > 0);
     for (const t of tables)
@@ -539,7 +559,7 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
     const [ch] = client.channels;
     assert.equal(ch.name, `pair:${PAIR}`);
     assert.deepEqual(
-      ch.listeners.map((l) => [l.type, l.filter]),
+      pgListeners(ch).map((l) => [l.type, l.filter]),
       [
         [
           "postgres_changes",
@@ -561,9 +581,10 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
         ],
       ],
     );
+    const [consultations, pairs] = pgListeners(ch);
     ch.statusCb("SUBSCRIBED");
-    ch.listeners[0].cb({ new: { id: "c9" }, old: {} });
-    ch.listeners[1].cb({ new: { id: PAIR }, old: {} });
+    consultations.cb({ new: { id: "c9" }, old: {} });
+    pairs.cb({ new: { id: PAIR }, old: {} });
     ch.statusCb("CHANNEL_ERROR");
     assert.deepEqual(events, [
       { kind: "resync" },
@@ -572,6 +593,28 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
     ]);
     stop();
     assert.deepEqual(client.removed, [ch]);
+  });
+
+  test("購読: 変更の配信が始まった system メッセージ（status ok）で 1 回 resync を出す", async () => {
+    const client = recordingClient();
+    const { events } = await driveAll(client);
+    const [ch] = client.channels;
+    const sys = systemListener(ch);
+    assert.deepEqual(sys.filter, {});
+    ch.statusCb("SUBSCRIBED");
+    sys.cb(SYSTEM_SUBSCRIBED);
+    assert.deepEqual(events, [{ kind: "resync" }, { kind: "resync" }]);
+  });
+
+  test("購読: system メッセージが ok でない・postgres_changes のものでないときは resync を出さない", async () => {
+    const client = recordingClient();
+    const { events } = await driveAll(client);
+    const sys = systemListener(client.channels[0]);
+    sys.cb({ ...SYSTEM_SUBSCRIBED, status: "error", message: "失敗" });
+    sys.cb({ ...SYSTEM_SUBSCRIBED, extension: "system" });
+    sys.cb(undefined);
+    sys.cb({});
+    assert.deepEqual(events, []);
   });
 
   test("行の読み取り: status と返信の組が合わない行は一覧から落とす", async () => {

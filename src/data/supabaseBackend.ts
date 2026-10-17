@@ -266,6 +266,19 @@ export class SupabaseBackend implements Backend {
         },
         () => onChange({ kind: "pair" }),
       )
+      // 変更の配信が始まった知らせ（"Subscribed to PostgreSQL"）。SUBSCRIBED はこれより先に来るので、
+      // その間に起きた変更は SUBSCRIBED の取り直しにも配信にも乗らない。ここでもう一度取り直す。
+      .on(
+        "system",
+        {},
+        (payload: { status?: unknown; extension?: unknown }) => {
+          if (
+            payload?.status === "ok" &&
+            payload?.extension === "postgres_changes"
+          )
+            onChange({ kind: "resync" });
+        },
+      )
       .subscribe((status) => {
         // つながった（つなぎ直した）ら取りこぼしがありうるので一覧を取り直す。
         if (`${status}` === "SUBSCRIBED") onChange({ kind: "resync" });
