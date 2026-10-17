@@ -54,6 +54,7 @@ export interface Backend {
   // ペアの相談とペアの状態の変化を購読する。返り値で購読をやめる。
   subscribePair(pairId: string, onChange: (e: PairChange) => void): () => void;
   // この端末の Expo の通知のトークンを自分のものとして保存する（token が主キー。disabled_at は null に戻す）。
+  // 前の利用者の行が残っていても持ち主を自分に移す（トークンを持っていること＝その端末を使っていること）。
   upsertPushToken(token: string): Promise<void>;
 }
 

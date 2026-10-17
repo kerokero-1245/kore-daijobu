@@ -1,12 +1,16 @@
-// Supabase の移行 SQL（supabase/migrations/20261016000000_init.sql）の RLS と整合を、PGlite で検査する。
+// Supabase の移行 SQL（supabase/migrations/ の 20261016000000_init.sql と 20261017000000_push_token_claim.sql）の
+// RLS と整合を、PGlite で検査する。
 // 守るもの:
 //   - 親子の当事者だけが自分のペアの行を読め、他人は全表 0 行・書き込み拒否
 //   - 相談を作れるのは親、返信できるのは子だけ（役割違いの書き込みは拒否）
 //   - status は返信の挿入トリガーだけが変える（直接の update は grant で拒否、二重返信も拒否）
 //   - 招待は期限 10 分・使い切り・10 分で失敗 5 回まで。招待・試行・送信記録はクライアントから読めない
+//   - 通知のトークンは register_push_token で、前の利用者の行が残っていても持ち主が移る（未認証は断る）
 // Supabase 固有の auth.uid()・auth.users・role anon / authenticated と、public の既定の grant は下で代わりを作る。
-// 2 本目（publication）は Supabase 固有なので流さない。
-// 環境変数 KORE_INIT_SQL で移行 SQL の場所を差し替えられる（変異で red を確かめるため）。
+// 流すのは init.sql → push_token_claim.sql の順（名前の順＝本番で流す順）。
+// realtime.sql（20261016000001）は `alter publication supabase_realtime` だけで、その publication は
+// Supabase が作るもので PGlite には無いので流さない（表・関数・権限は変えないので検査の範囲に影響しない）。
+// 環境変数 KORE_INIT_SQL・KORE_CLAIM_SQL で移行 SQL の場所を差し替えられる（変異で red を確かめるため）。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, describe, test } from "node:test";
@@ -16,9 +20,15 @@ import { PGlite } from "@electric-sql/pglite";
 import { CATEGORY_ORDER } from "../src/domain/category.ts";
 import { MAX_REPLY_LENGTH } from "../src/domain/reply.ts";
 
-const MIGRATION =
+const MIGRATIONS = [
   process.env.KORE_INIT_SQL ??
-  new URL("../supabase/migrations/20261016000000_init.sql", import.meta.url);
+    new URL("../supabase/migrations/20261016000000_init.sql", import.meta.url),
+  process.env.KORE_CLAIM_SQL ??
+    new URL(
+      "../supabase/migrations/20261017000000_push_token_claim.sql",
+      import.meta.url,
+    ),
+];
 
 // Supabase にあって素の Postgres に無いもの。auth.uid() は Supabase と同じく JWT の sub を読む。
 // public の既定の grant（anon・authenticated に全権）も Supabase に合わせ、移行の revoke が効くかを試す。
@@ -117,7 +127,7 @@ describe("移行 SQL の RLS と整合（PGlite）", () => {
   before(async () => {
     db = new PGlite();
     await db.exec(SUPABASE_STANDIN);
-    await db.exec(readFileSync(MIGRATION, "utf8"));
+    for (const m of MIGRATIONS) await db.exec(readFileSync(m, "utf8"));
     await db.exec(
       `insert into auth.users (id) values ('${PARENT}'), ('${CHILD}'), ('${OTHER}'), ('${NO_PROFILE}')`,
     );
@@ -673,6 +683,116 @@ describe("移行 SQL の RLS と整合（PGlite）", () => {
       "0 行",
       write("delete from public.push_tokens where user_id = $1", [PARENT]),
     );
+  });
+
+  test("push_tokens: register_push_token は前の利用者の行が残っていても持ち主を移し、disabled_at を null に戻す", async () => {
+    const TOKEN = "ExponentPushToken[parent]";
+    const owner = select(
+      "select user_id, disabled_at from public.push_tokens where token = $1",
+      [TOKEN],
+    );
+    const register = (token) => async (tx) => {
+      await tx.query("select public.register_push_token($1)", [token]);
+      return { label: "ok" };
+    };
+    // 前の利用者（親）の行が無効の印つきで残っている。
+    await check(
+      "service",
+      "push_tokens",
+      "update 親の行を無効に",
+      "1 行",
+      write(
+        "update public.push_tokens set disabled_at = now() where token = $1",
+        [TOKEN],
+      ),
+    );
+    // 直接の upsert では移せない（tokens_own は変えていない）。
+    await check(
+      "子",
+      "push_tokens",
+      "upsert 親の行（直接）",
+      "rls",
+      write(
+        "insert into public.push_tokens (token, user_id) values ($1, $2) on conflict (token) do update set user_id = excluded.user_id",
+        [TOKEN, CHILD],
+      ),
+    );
+    await check(
+      "子",
+      "push_tokens",
+      "register_push_token 親の行",
+      "ok",
+      register(TOKEN),
+    );
+    const [row] = await check(
+      "service",
+      "push_tokens",
+      "select 移したあと",
+      "1 行",
+      owner,
+    );
+    assert.equal(row.user_id, CHILD);
+    assert.equal(row.disabled_at, null);
+    // 同じ利用者の登録し直しも通る（起動のたびに呼ぶため）。
+    await check(
+      "子",
+      "push_tokens",
+      "register_push_token 自分の行",
+      "ok",
+      register(TOKEN),
+    );
+    await check(
+      "子",
+      "push_tokens",
+      "register_push_token 空",
+      "raise",
+      register(" "),
+    );
+    // 未認証（auth.uid() が null）は断る。anon は execute の grant が無い。
+    await check(
+      "service",
+      "push_tokens",
+      "register_push_token 未認証（authenticated・sub なし）",
+      "raise",
+      async (tx) => {
+        await tx.exec("set local role authenticated");
+        return register("ExponentPushToken[nobody]")(tx);
+      },
+    );
+    await check(
+      "anon",
+      "push_tokens",
+      "register_push_token",
+      "grant",
+      register("ExponentPushToken[nobody]"),
+    );
+    await check(
+      "service",
+      "push_tokens",
+      "select 未認証の行が無い",
+      "0 行",
+      select("select 1 from public.push_tokens where token = $1", [
+        "ExponentPushToken[nobody]",
+      ]),
+    );
+    // tokens_own は 1 本目のまま（自分の行だけ・for all）。
+    const policies = await check(
+      "service",
+      "pg_policies",
+      "select push_tokens のポリシー",
+      "1 行",
+      select(
+        "select policyname, cmd, qual, with_check from pg_policies where tablename = 'push_tokens'",
+      ),
+    );
+    assert.deepEqual(policies, [
+      {
+        policyname: "tokens_own",
+        cmd: "ALL",
+        qual: "(user_id = ( SELECT auth.uid() AS uid))",
+        with_check: "(user_id = ( SELECT auth.uid() AS uid))",
+      },
+    ]);
   });
 
   test("pair_invites / invite_attempts / push_log: authenticated は grant で読めず、grant を足しても RLS で 0 行", async () => {

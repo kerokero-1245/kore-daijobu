@@ -479,7 +479,21 @@ describe("アプリ側: 環境の判定・開く画面・トークンの保存",
     assert.equal(b.pushTokens().size, 0);
   });
 
-  test("SupabaseBackend は push_tokens に token を主キーとして upsert し、disabled_at を null に戻す", async () => {
+  test("FakeBackend は前の利用者の行が残っていても持ち主を移す（本物の register_push_token と同じ）", async () => {
+    const storage = createMemoryHub().device();
+    let n = 0;
+    const b = new FakeBackend({ storage, newId: () => `id-${++n}` });
+    const first = await b.signIn();
+    await b.upsertPushToken("ExponentPushToken[a]");
+    // サインアウトの削除を通らずに利用者が替わった（保存したセッションが読めなかった）場合と同じ形。
+    storage.writeSession(null);
+    const second = await b.signIn();
+    assert.notEqual(first, second);
+    await b.upsertPushToken("ExponentPushToken[a]");
+    assert.deepEqual([...b.pushTokens()], [["ExponentPushToken[a]", second]]);
+  });
+
+  test("SupabaseBackend は関数 register_push_token に { p_token } で登録する（表への upsert はしない）", async () => {
     const calls = [];
     const from = (table) => {
       const rec = { table, ops: [] };
@@ -501,6 +515,10 @@ describe("アプリ側: 環境の判定・開く画面・トークンの保存",
     };
     const client = {
       from,
+      async rpc(name, args) {
+        calls.push({ rpc: name, args });
+        return { data: null, error: null };
+      },
       auth: {
         getSession: async () => ({
           data: { session: { user: { id: CHILD } } },
@@ -512,15 +530,21 @@ describe("アプリ側: 環境の判定・開く画面・トークンの保存",
     const b = new SupabaseBackend(client);
     await b.signIn();
     await b.upsertPushToken("ExponentPushToken[a]");
-    const up = calls.find((c) => c.ops.some(([op]) => op === "upsert"));
-    assert.equal(up.table, "push_tokens");
-    assert.deepEqual(up.ops[0], [
-      "upsert",
-      { token: "ExponentPushToken[a]", user_id: CHILD, disabled_at: null },
-      { onConflict: "token" },
-    ]);
+    assert.deepEqual(
+      calls.filter((c) => c.rpc),
+      [
+        {
+          rpc: "register_push_token",
+          args: { p_token: "ExponentPushToken[a]" },
+        },
+      ],
+    );
+    assert.ok(
+      !calls.some((c) => c.ops?.some(([op]) => op === "upsert")),
+      "表への upsert はしない",
+    );
     await b.signOut();
-    const del = calls.find((c) => c.ops.some(([op]) => op === "delete"));
+    const del = calls.find((c) => c.ops?.some(([op]) => op === "delete"));
     assert.equal(del.table, "push_tokens");
     assert.deepEqual(del.ops[1], ["eq", "user_id", CHILD]);
     const sql = readFileSync(
@@ -532,5 +556,29 @@ describe("アプリ側: 環境の判定・開く画面・トークンの保存",
     );
     assert.ok(sql.includes("create table public.push_tokens ("));
     assert.ok(sql.includes("token text primary key"));
+    const claim = readFileSync(
+      new URL(
+        "../supabase/migrations/20261017000000_push_token_claim.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    assert.ok(
+      claim.includes(
+        "create function public.register_push_token(p_token text)",
+      ),
+    );
+  });
+
+  test("SupabaseBackend はサインイン前の登録を投げて止める（関数を呼ばない）", async () => {
+    const calls = [];
+    const b = new SupabaseBackend({
+      async rpc(name) {
+        calls.push(name);
+        return { data: null, error: null };
+      },
+    });
+    await assert.rejects(b.upsertPushToken("ExponentPushToken[a]"));
+    assert.deepEqual(calls, []);
   });
 });

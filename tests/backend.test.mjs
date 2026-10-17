@@ -11,7 +11,7 @@
 import "./ts-resolve.mjs";
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
 const { FakeBackend, createMemoryHub } =
@@ -412,15 +412,21 @@ async function driveAll(client) {
   await b.insertConsultation({ id: "c1", pairId: PAIR, category: "money" });
   await b.insertReply("c1", "danger", "それ詐欺かも");
   await b.markSeen("c1");
+  await b.upsertPushToken("ExponentPushToken[x]");
   const events = [];
   const stop = b.subscribePair(PAIR, (e) => events.push(e));
   return { b, events, stop };
 }
 
-const INIT_SQL = readFileSync(
-  new URL("../supabase/migrations/20261016000000_init.sql", import.meta.url),
-  "utf8",
-);
+// 移行 SQL を全部（フォルダから動的に列挙・0 本なら失敗）。足した関数も照合の対象に入る。
+const MIGRATIONS_DIR = new URL("../supabase/migrations/", import.meta.url);
+const MIGRATION_FILES = readdirSync(MIGRATIONS_DIR)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
+if (MIGRATION_FILES.length === 0) throw new Error("移行 SQL がありません");
+const ALL_SQL = MIGRATION_FILES.map((f) =>
+  readFileSync(new URL(f, MIGRATIONS_DIR), "utf8"),
+).join("\n");
 const REALTIME_SQL = readFileSync(
   new URL(
     "../supabase/migrations/20261016000001_realtime.sql",
@@ -441,10 +447,14 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
       ...new Set(client.calls.filter((c) => c.rpc).map((c) => c.rpc)),
     ].sort();
     assert.deepEqual(tables, ["consultations", "pairs", "profiles", "replies"]);
-    assert.deepEqual(rpcs, ["create_invite", "redeem_invite"]);
+    assert.deepEqual(rpcs, [
+      "create_invite",
+      "redeem_invite",
+      "register_push_token",
+    ]);
   });
 
-  test("表名は移行 SQL に create table public.<名> として、関数名は create function public.<名> として実在する", async () => {
+  test("表名は移行 SQL（supabase/migrations/ の全部）に create table public.<名> として、関数名は create function public.<名> として実在する", async () => {
     const client = recordingClient();
     await driveAll(client);
     const tables = new Set(
@@ -455,9 +465,9 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
       for (const l of ch.listeners) tables.add(l.filter.table);
     assert.ok(tables.size > 0 && rpcs.size > 0, "0 件なら検査になっていない");
     for (const t of tables)
-      assert.ok(INIT_SQL.includes(`create table public.${t} (`), `表 ${t}`);
+      assert.ok(ALL_SQL.includes(`create table public.${t} (`), `表 ${t}`);
     for (const r of rpcs)
-      assert.ok(INIT_SQL.includes(`create function public.${r}(`), `関数 ${r}`);
+      assert.ok(ALL_SQL.includes(`create function public.${r}(`), `関数 ${r}`);
   });
 
   test("購読する表は Realtime の publication に入っている", async () => {

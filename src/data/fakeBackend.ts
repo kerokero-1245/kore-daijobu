@@ -500,6 +500,7 @@ export class FakeBackend implements Backend {
 
   // ---- 通知のトークン ----
 
+  // 前の利用者の行が残っていても持ち主を上書きする（本物の register_push_token と同じ）。
   async upsertPushToken(token: string): Promise<void> {
     this.#pushTokens.set(token, this.#uid());
   }
