@@ -1,0 +1,75 @@
+name: Web を GitHub Pages へデプロイ
+
+# 偽バックエンドの Web 版をデモとして公開する。ci.yml の検査とは別。
+# main への push と手動実行だけで走らせる（PR の検査は ci.yml が担う）。
+# EXPO_PUBLIC_BACKEND=fake で端末内の偽バックエンドに固定するので、Supabase の値は渡さない。
+# 権限とデプロイの列（concurrency の pages）は deploy ジョブだけに持たせる。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: チェックアウト
+        uses: actions/checkout@v7
+
+      - name: Node を .nvmrc の版で用意
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 依存関係をインストール
+        run: npm ci
+
+      - name: 型チェック（tsc --noEmit）
+        run: npm run typecheck
+
+      - name: テスト（node --test）
+        run: npm test
+
+      - name: Web を書き出し（サブパス /kore-daijobu/ 前提・偽バックエンド）
+        # EXPO_BASE_URL は app.config.js が experiments.baseUrl に反映する。
+        # これによりビルド時のみサブパスが適用され、ローカル開発には影響しない。
+        env:
+          EXPO_BASE_URL: /kore-daijobu
+          EXPO_PUBLIC_BACKEND: fake
+        run: npx expo export --platform web
+
+      - name: Jekyll 無効化（_expo などアンダースコア始まりを配信するため）
+        run: touch dist/.nojekyll
+
+      - name: 成果物をアップロード
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Pages 設定（未有効なら有効化）
+        uses: actions/configure-pages@v6
+        with:
+          enablement: true
+
+      - name: デプロイ
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -5,6 +5,7 @@
 <img src="docs/screenshots/top.png" width="280" alt="親のホーム画面。上に「答えが届きました」の入口、その下に青い丸ボタン「これ、大丈夫？」">
 <img src="docs/screenshots/answer.png" width="280" alt="親の答えの画面。赤い見出し「詐欺かもしれません」と、子からの返信「それ詐欺かも！絶対に対応しないで」">
 
+- デモ: https://kerokero-1245.github.io/kore-daijobu/ （Web 版。端末内の偽バックエンドで動くので、2 台の共有とプッシュ通知は動かない。親と子の往復は 2 タブで試せる）
 - 設計: [docs/DESIGN.md](docs/DESIGN.md)
 - 技術: Expo (React Native + TypeScript) / Supabase（匿名サインイン・Postgres・RLS・Realtime）/ Expo Push（Database Webhook → Edge Function）
 - 作り方の規則と、この repo で違うこと: [docs/DESIGN.md](docs/DESIGN.md#この-repo-での適用)
@@ -96,6 +97,7 @@ npm run web        # Expo 開発サーバーを起動してブラウザで開く
 
 ## 既知の制限
 
+- デモ: https://kerokero-1245.github.io/kore-daijobu/ （Web 版。端末内の偽バックエンドで動くので、2 台の共有とプッシュ通知は動かない。親と子の往復は 2 タブで試せる）
 - 通知の許可を後から切った端末も、トークンの行は有効のまま残る（無効にも削除もしない）。Function は送り続け、push_log には ok が残りうる（ok は Expo が受けた印で、届いた印ではない）
 - 同じ端末で利用者が替わったとき（つなぎ直す）は、次の利用者のトークンの登録（`register_push_token`）が持ち主を移す。サインアウトの前に前の利用者の行を外すが、保存したセッションが読めずにつなぎ直したときや通信に失敗したときは外せず、次の利用者が登録するまでの間は、前の利用者あての通知がその端末に届きうる
 
