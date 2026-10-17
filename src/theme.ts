@@ -97,7 +97,7 @@ export const textStyle = defineStyles({
   bigStrong: { fontSize: font.big, fontWeight: "700", color: colors.text },
 });
 
-// 画面の上のヘッダー帯（画面の組の見た目。src/components/Screen.tsx が各画面に当てる）。
+// 画面の上のヘッダー帯（画面の組の見た目。App.tsx の screenOptions が全画面に当てる）。
 // 地は画面と同じクリームで境目の線なし、題と戻るの矢印はこげ茶。
 export const headerLook = {
   headerStyle: { backgroundColor: colors.bg },

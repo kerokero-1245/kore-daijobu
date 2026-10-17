@@ -12,7 +12,7 @@ import { usePushNotifications } from "./src/data/pushTokens";
 import { SessionProvider, useSession } from "./src/data/session";
 import { StoreProvider } from "./src/data/store";
 import { RootStackParamList } from "./src/navigation/types";
-import { colors, textStyle } from "./src/theme";
+import { colors, headerLook } from "./src/theme";
 import LoadingScreen from "./src/screens/LoadingScreen";
 import RoleSelectScreen from "./src/screens/RoleSelectScreen";
 import ChildPairingScreen from "./src/screens/pairing/ChildPairingScreen";
@@ -52,10 +52,9 @@ function RootNavigator() {
   if (session.status === "loading") return <LoadingScreen />;
   return (
     <Stack.Navigator
+      // ヘッダー帯の見た目（theme.ts の headerLook）は、組の全画面にここで当てる。
       screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTitleStyle: textStyle.bodyStrong,
-        headerTintColor: colors.primary,
+        ...headerLook,
         contentStyle: { backgroundColor: colors.bg },
       }}
     >

@@ -1,12 +1,10 @@
-// 画面の共通ラッパー。セーフエリアと余白・背景色・中身の列の幅、ヘッダー帯の見た目をまとめる。
-// ヘッダー帯は画面の地と同じクリームにして、境目の線を消し、題と戻るの矢印をこげ茶にする
-// （画面の組の中にいるときだけ。起動中の画面は組の外なので何もしない）。
+// 画面の共通ラッパー。セーフエリアと余白・背景色・中身の列の幅をまとめる。
+// ヘッダー帯の見た目は App.tsx の画面の組の設定（screenOptions）で当てる。
 
-import React, { useContext, useLayoutEffect, useRef } from "react";
+import React from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { NavigationContext } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, headerLook, size, space } from "../theme";
+import { colors, size, space } from "../theme";
 
 interface Props {
   children: React.ReactNode;
@@ -22,15 +20,6 @@ export default function Screen({
   onViewportHeight,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const navigation = useContext(NavigationContext);
-  // ヘッダーの見た目は画面ごとに 1 回だけ当てる（options を変えると画面の組が描き直されるので、
-  // 描き直しのたびに当て直すと、描き直しが続くことがある）。
-  const headerApplied = useRef(false);
-  useLayoutEffect(() => {
-    if (headerApplied.current || !navigation) return;
-    headerApplied.current = true;
-    navigation.setOptions(headerLook);
-  }, [navigation]);
   const pad = {
     paddingTop: padY,
     paddingBottom: insets.bottom + padY,
