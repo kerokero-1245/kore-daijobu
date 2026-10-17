@@ -35,6 +35,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: eslint-config-expo
         update-types: ["version-update:semver-major"]
+      - dependency-name: "@react-native-async-storage/async-storage"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-native-get-random-values
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
