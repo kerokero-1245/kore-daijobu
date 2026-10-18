@@ -247,3 +247,74 @@ describe("consultationSync: 一覧の取り直しの失敗", () => {
     stop();
   });
 });
+
+// 取り直しのきっかけ（start・購読のつなぎ直し・配信の開始・前面復帰）が重なると、応答の着く順が入れ替わりうる。
+// 後から始めた取り直しの結果がもう入っていたら、先に始めた方の結果（古い一覧・失敗）は捨てる。
+describe("consultationSync: 重なった取り直しの順番", () => {
+  // listConsultations を、呼ばれた順に手で応答を返せる形に差し替える。
+  function deferList(backend) {
+    const calls = [];
+    backend.listConsultations = () =>
+      new Promise((resolve, reject) => calls.push({ resolve, reject }));
+    return calls;
+  }
+  const row = (id, t) => ({
+    id,
+    category: "money",
+    createdAt: t,
+    status: "waiting",
+  });
+
+  test("先に始めた取り直しの古い一覧が後から着いても、新しい一覧を上書きしない", async () => {
+    const { child, syncOf } = await setup();
+    const sync = syncOf(child);
+    const calls = deferList(child);
+    const first = sync.refresh();
+    const second = sync.refresh();
+    calls[1].resolve([row("c-2", 2), row("c-1", 1)]);
+    await second;
+    calls[0].resolve([row("c-1", 1)]);
+    await first;
+    assert.deepEqual(
+      sync.getState().consultations.map((c) => c.id),
+      ["c-2", "c-1"],
+    );
+  });
+
+  test("先に始めた取り直しの失敗が後から着いても、syncError を入れない", async () => {
+    const { child, syncOf } = await setup();
+    const sync = syncOf(child);
+    const calls = deferList(child);
+    const first = sync.refresh();
+    const second = sync.refresh();
+    calls[1].resolve([row("c-1", 1)]);
+    await second;
+    calls[0].reject(new Error("listConsultations: offline"));
+    await first;
+    assert.equal(sync.getState().syncError, undefined);
+    assert.deepEqual(
+      sync.getState().consultations.map((c) => c.id),
+      ["c-1"],
+    );
+  });
+
+  test("順番どおりに着いたら、どちらの結果も入る（最後の一覧になる）", async () => {
+    const { child, syncOf } = await setup();
+    const sync = syncOf(child);
+    const calls = deferList(child);
+    const first = sync.refresh();
+    const second = sync.refresh();
+    calls[0].resolve([row("c-1", 1)]);
+    await first;
+    assert.deepEqual(
+      sync.getState().consultations.map((c) => c.id),
+      ["c-1"],
+    );
+    calls[1].resolve([row("c-2", 2), row("c-1", 1)]);
+    await second;
+    assert.deepEqual(
+      sync.getState().consultations.map((c) => c.id),
+      ["c-2", "c-1"],
+    );
+  });
+});

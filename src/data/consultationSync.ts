@@ -6,6 +6,7 @@
 
 import type { Category, Consultation, Verdict } from "../types";
 import { RECENT_LIMIT, type Backend } from "./backend";
+import { createLatest } from "./latest";
 import {
   applyReply,
   newConsultation,
@@ -53,6 +54,8 @@ export function createConsultationSync(options: SyncOptions): ConsultationSync {
   // 送信中の相談（id → 手元の版）。取り直しで届いた古い行に上書きされないよう、送り終わるまで手元を優先する。
   const pending = new Map<string, Consultation>();
   const inflight = new Set<Promise<void>>();
+  // 取り直しは重なりうる（start・購読のつなぎ直し・配信の開始・前面復帰）。古い一覧・失敗で新しい一覧を上書きしない。
+  const listing = createLatest();
 
   const set = (next: SyncState) => {
     state = next;
@@ -88,14 +91,18 @@ export function createConsultationSync(options: SyncOptions): ConsultationSync {
       : [c, ...list].sort(byNewest);
 
   // 取り直せなかったら、手元の一覧はそのままで syncError を入れる（取り直せたら "clear" で消す）。
+  // 後から始めた取り直しの結果がもう入っていたら、この回の結果は捨てる（src/data/latest.ts）。
   const refresh = async () => {
+    const seq = listing.begin();
     let remote: Consultation[];
     try {
       remote = await backend.listConsultations(pairId, RECENT_LIMIT);
     } catch (e) {
-      setList(state.consultations, SYNC_ERROR_MESSAGE);
+      if (listing.accept(seq, "failure"))
+        setList(state.consultations, SYNC_ERROR_MESSAGE);
       throw e;
     }
+    if (!listing.accept(seq, "result")) return;
     let list = remote;
     for (const local of pending.values()) list = upsert(list, local);
     setList(list.sort(byNewest), "clear");

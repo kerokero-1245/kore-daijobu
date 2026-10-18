@@ -1,8 +1,5 @@
 // サインインとペアの状態。起動時に匿名でサインインし、役割とペアを読んで、出す画面を決める。
-//   loading → choose_role（役割をまだ決めていない）
-//           → child_unpaired（子。招待の番号を出して親を待つ）
-//           → parent_unpaired（親。番号を入れる）
-//           → paired（つながった。親はホーム、子は受信一覧）
+// 状態の一覧と読み込みの中身は sessionLoader.ts（React に依存しない）にある。
 // 子は親の端末で番号が入るのを、ペアの変化の購読で待つ。
 
 import React, {
@@ -18,15 +15,14 @@ import { AppState } from "react-native";
 import { backend, requireBackend } from "./backendInstance";
 import type { Invite, RedeemResult } from "./backend";
 import { pollWhile } from "./poll";
-import { sessionStatusOf, type PairInfo, type Role } from "../domain/pairing";
+import {
+  createSessionLoader,
+  sameState,
+  type SessionState,
+} from "./sessionLoader";
+import type { Role } from "../domain/pairing";
 
-export type SessionState =
-  // fatal: もう一度ためしても直らない（設定が無い）。起動画面に「もう一度」を出さない。
-  | { status: "loading"; error?: string; fatal?: boolean }
-  | { status: "choose_role" }
-  | { status: "child_unpaired"; pairId: string }
-  | { status: "parent_unpaired" }
-  | { status: "paired"; role: Role; pairId: string };
+export type { SessionState } from "./sessionLoader";
 
 type SessionValue = SessionState & {
   chooseRole: (role: Role) => Promise<void>;
@@ -40,9 +36,6 @@ type SessionValue = SessionState & {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-const LOAD_ERROR =
-  "つながりませんでした。電波のよい所で、もう一度ためしてください。";
-
 const CONFIG_ERROR =
   "設定がありません。このアプリは、まだ使える状態になっていません。";
 
@@ -53,44 +46,6 @@ const INITIAL: SessionState = backend
   ? { status: "loading" }
   : { status: "loading", error: CONFIG_ERROR, fatal: true };
 
-// 出す画面が変わらない読み直し（前面復帰・購読のつなぎ直し）では、前の状態をそのまま使う。
-// 新しい状態を入れると、それを使う画面の effect が走り直す（子の番号が作り直される）。
-function sameState(a: SessionState, b: SessionState): boolean {
-  if (a.status !== b.status) return false;
-  if (a.status === "loading" && b.status === "loading")
-    return a.error === b.error && a.fatal === b.fatal;
-  if (a.status === "child_unpaired" && b.status === "child_unpaired")
-    return a.pairId === b.pairId;
-  if (a.status === "paired" && b.status === "paired")
-    return a.pairId === b.pairId && a.role === b.role;
-  return true;
-}
-
-// 役割とペアから状態を作る（子でペアがまだ無ければ作る）。
-async function readState(): Promise<SessionState> {
-  const b = requireBackend();
-  await b.signIn();
-  const role = await b.getRole();
-  let pair: PairInfo | null = await b.getPair();
-  if (role === "child" && !pair) {
-    await b.createPair();
-    pair = await b.getPair();
-  }
-  const status = sessionStatusOf(role, pair);
-  switch (status) {
-    case "paired":
-      return pair
-        ? { status, role: pair.role, pairId: pair.pairId }
-        : { status: "choose_role" };
-    case "child_unpaired":
-      return pair
-        ? { status, pairId: pair.pairId }
-        : { status: "loading", error: LOAD_ERROR };
-    default:
-      return { status };
-  }
-}
-
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<SessionState>(INITIAL);
 
@@ -98,34 +53,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => (sameState(prev, next) ? prev : next));
   }, []);
 
-  const load = useCallback(
-    (): Promise<void> =>
-      readState().then(update, (e: unknown) => {
-        console.warn("サインインに失敗しました", e);
-        update({ status: "loading", error: LOAD_ERROR });
+  // 重なった読み込みは、後から始めた方の結果がもう入っていれば先の方を捨てる（sessionLoader.ts）。
+  const loader = useMemo(
+    () =>
+      createSessionLoader({
+        backend: requireBackend,
+        apply: update,
+        warn: (message, e) =>
+          e === undefined ? console.warn(message) : console.warn(message, e),
       }),
     [update],
   );
-
-  // 待つ間の保険の読み直しは、失敗しても画面に上げない（電波が数秒切れただけで番号の画面を消さない）。
-  const refreshQuietly = useCallback(
-    (): Promise<void> =>
-      readState().then(
-        (next) => {
-          if (next.status === "loading") {
-            console.warn(
-              "読み直しでペアを読めませんでした（次の回で読み直します）",
-            );
-            return;
-          }
-          update(next);
-        },
-        (e: unknown) => {
-          console.warn("読み直しに失敗しました（次の回で読み直します）", e);
-        },
-      ),
-    [update],
-  );
+  const { load, refreshQuietly } = loader;
 
   useEffect(() => {
     if (backend) void load();
