@@ -1,0 +1,112 @@
+# Dependabot の minor/patch のまとめ PR を、CI が通ったら自動で取り込み、Web の配信を起動する。
+# - 対象は作者が dependabot[bot] で、題名が「Bump the minor-and-patch group」で始まる PR だけ。
+#   major の更新と GitHub Actions の更新は今までどおり人が見て判断する。
+# - CI（ci.yml）の完了を workflow_run で受ける。workflow_run はこのファイルが既定ブランチ（main）にあるときだけ動く。
+# - GITHUB_TOKEN で行った merge は push の workflow を起こさないので、取り込み後に deploy.yml を手動実行の形で起動する
+#   （workflow_dispatch は GITHUB_TOKEN からでも起こせる）。
+# - 試験用に手動実行（入力 pr: PR 番号）も持つ。こちらは作者の条件を外し、CI が success の PR を同じ手順で取り込む。
+# - repo の設定（auto-merge の許可・ブランチ保護）は使わない。main への直接 push の運用をそのまま残すため。
+name: Dependabot のまとめ PR を自動で取り込む
+
+on:
+  workflow_run:
+    workflows: ["CI（整形・lint・型・テスト）"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 取り込む PR の番号（CI が success であること）
+        required: true
+        type: string
+
+# merge（contents: write）、PR の参照（pull-requests: write）、deploy.yml の起動（actions: write）に要る分だけ
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+# 取り込みは 1 本ずつ。走っている取り込みは途中で止めない
+concurrency:
+  group: dependabot-auto-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: 取り込みと配信の起動
+    # 自動のときは、PR の CI が success で終わったときだけ動かす（main への push で走った CI は対象外）
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      EVENT_NAME: ${{ github.event_name }}
+      INPUT_PR: ${{ inputs.pr }}
+      RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: 対象の PR を確かめる
+        id: target
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            # 手動実行: 番号で指定された PR の、いまの先頭コミットで CI が success かを確かめる
+            case "$INPUT_PR" in (''|*[!0-9]*) echo "pr には PR の番号（数字）を渡す: '$INPUT_PR'"; exit 1;; esac
+            number="$INPUT_PR"
+            head_sha="$(gh api "repos/$REPO/pulls/$number" --jq '.head.sha')"
+            conclusion="$(gh run list -R "$REPO" --workflow ci.yml --commit "$head_sha" --event pull_request \
+              --limit 1 --json conclusion --jq '.[0].conclusion // ""')"
+            if [ "$conclusion" != "success" ]; then
+              echo "PR #$number の先頭 $head_sha で CI が success でない（結果: '${conclusion:-なし}'）。取り込まない"
+              exit 1
+            fi
+          else
+            # 自動: CI が検査したブランチの、開いている PR を探す
+            number="$(gh api "repos/$REPO/pulls?state=open&head=${REPO%%/*}:$RUN_HEAD_BRANCH" --jq '.[0].number // ""')"
+            if [ -z "$number" ]; then
+              echo "ブランチ $RUN_HEAD_BRANCH に開いている PR が無い。何もしない"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            head_sha="$RUN_HEAD_SHA"
+          fi
+
+          IFS=$'\t' read -r state author current_sha title < <(
+            gh api "repos/$REPO/pulls/$number" --jq '[.state, .user.login, .head.sha, .title] | @tsv')
+          echo "PR #$number 状態=$state 作者=$author 題名=$title 先頭=$current_sha"
+
+          if [ "$state" != "open" ]; then
+            echo "PR が開いていない。何もしない"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # CI が検査したコミットと PR の先頭がずれていたら取り込まない（検査の後に push されたもの）
+          if [ "$current_sha" != "$head_sha" ]; then
+            echo "CI が検査したコミット $head_sha と PR の先頭 $current_sha が違う。取り込まない"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$EVENT_NAME" != "workflow_dispatch" ]; then
+            if [ "$author" != "dependabot[bot]" ] || [[ "$title" != "Bump the minor-and-patch group"* ]]; then
+              echo "Dependabot の minor/patch のまとめ PR ではない。何もしない"
+              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          {
+            echo "skip=false"
+            echo "number=$number"
+            echo "head_sha=$head_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: PR を取り込む（rebase・ブランチ削除）
+        if: steps.target.outputs.skip == 'false'
+        env:
+          NUMBER: ${{ steps.target.outputs.number }}
+          HEAD_SHA: ${{ steps.target.outputs.head_sha }}
+        # 検査したコミットのときだけ取り込むよう --match-head-commit で先頭を固定する
+        run: gh pr merge "$NUMBER" -R "$REPO" --rebase --delete-branch --match-head-commit "$HEAD_SHA"
+
+      - name: Web の配信（deploy.yml）を起動する
+        if: steps.target.outputs.skip == 'false'
+        # GITHUB_TOKEN の merge では push の workflow が起きないため、手動実行の形で起こす
+        run: gh workflow run deploy.yml -R "$REPO" --ref main
