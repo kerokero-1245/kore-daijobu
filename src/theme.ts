@@ -158,6 +158,22 @@ export type Tone = keyof typeof tone;
 // 押している間の不透明度。ボタン（BigButton）と、行・大ボタン・選択肢で別の値のまま。
 export const pressedOpacity = { button: 0.85, item: 0.9 };
 
+// 押せないときの濃さ（BigButton と数字キーの「消す」）。
+export const disabledOpacity = 0.4;
+
+// 押せる面（BigButton・数字キーの「消す」）の見た目。disabled を渡さなければ押せる（既定。全画面のボタンが使う）。
+// 押せないときは押していても disabledOpacity、押している間は pressedOpacity.button、それ以外は 1。
+export function pressLook(
+  disabled: boolean | undefined,
+  pressed: boolean,
+): { disabled: boolean; opacity: number } {
+  const off = disabled ?? false;
+  return {
+    disabled: off,
+    opacity: off ? disabledOpacity : pressed ? pressedOpacity.button : 1,
+  };
+}
+
 export const space = {
   hair: 2,
   tiny: 4,

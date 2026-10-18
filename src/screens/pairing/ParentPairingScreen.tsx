@@ -31,6 +31,7 @@ import {
   lift,
   liftShadow,
   lineHeight,
+  pressLook,
   pressedOpacity,
   radius,
   space,
@@ -154,8 +155,7 @@ export default function ParentPairingScreen() {
                       styles.key,
                       styles.eraseKey,
                       key,
-                      busy && styles.keyDisabled,
-                      pressed && { opacity: pressedOpacity.button },
+                      { opacity: pressLook(busy, pressed).opacity },
                     ]}
                   >
                     <Icon name="erase" size={30} />
@@ -194,9 +194,6 @@ export default function ParentPairingScreen() {
     </Screen>
   );
 }
-
-// 押せないときの濃さ（BigButton と同じ）。
-const DISABLED_OPACITY = 0.4;
 
 const styles = StyleSheet.create({
   lead: { ...textStyle.bodyStrong, lineHeight: lineHeight.body },
@@ -240,6 +237,5 @@ const styles = StyleSheet.create({
     gap: space.xs,
     backgroundColor: colors.orangeSoft,
   },
-  keyDisabled: { opacity: DISABLED_OPACITY },
   eraseText: { ...textStyle.bodyStrong },
 });

@@ -16,7 +16,7 @@ import {
   lift,
   liftShadow,
   lineHeight,
-  pressedOpacity,
+  pressLook,
   radius,
   space,
   tone as tones,
@@ -45,9 +45,6 @@ type Props = {
 // 台なしで文字の左に置く絵の大きさ。
 const PLAIN_ICON = 34;
 
-// 押せないときの濃さ。
-const DISABLED_OPACITY = 0.4;
-
 // variant ごとの色の組と、絵の台の既定の色。
 function look(props: Props): { tone: Tone; disc: string } {
   switch (props.variant) {
@@ -68,7 +65,9 @@ const DISC = {
 };
 
 export default function BigButton(props: Props) {
-  const { label, onPress, icon, sub, tall = false, disabled = false } = props;
+  const { label, onPress, icon, sub, tall = false } = props;
+  // 押せるかと濃さは theme の pressLook が決める（disabled を渡さなければ押せる）。
+  const { disabled } = pressLook(props.disabled, false);
   const l = look(props);
   const t = tones[l.tone];
   const verdict = props.variant === "verdict";
@@ -87,11 +86,7 @@ export default function BigButton(props: Props) {
           ...(props.minHeight ? { minHeight: props.minHeight } : null),
           borderRadius:
             tall || l.tone === "primary" ? radius.button : radius.card,
-          opacity: disabled
-            ? DISABLED_OPACITY
-            : pressed
-              ? pressedOpacity.button
-              : 1,
+          opacity: pressLook(props.disabled, pressed).opacity,
         },
         liftShadow(l.tone === "card" || verdict ? lift.sm : lift.md, t.shade),
       ]}

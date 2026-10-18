@@ -9,6 +9,8 @@
 //   - 行の高さが文字の大きさより大きいこと、文字の組（textStyle）が font と colors の値だけでできていること
 //   - 押している間の不透明度が 0〜1 の間にあること、space が小さい順に並んでいること
 //   - verdictStyle が、判定の色を文字色と枠色の両方に同じ値で返すこと
+//   - 押せる面の見た目（pressLook）: disabled を渡さなければ押せて不透明度 1（BigButton の既定。全画面の
+//     ボタンが使う）。押している間は pressedOpacity、押せないときは disabledOpacity
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -20,6 +22,8 @@ import {
   lift,
   liftShadow,
   lineHeight,
+  disabledOpacity,
+  pressLook,
   pressedOpacity,
   radius,
   size,
@@ -217,6 +221,30 @@ test("押している間の不透明度は 0 より大きく 1 より小さい�
   const values = Object.values(pressedOpacity);
   assert.ok(values.length > 0);
   for (const v of values) assert.ok(v > 0 && v < 1);
+});
+
+test("押せる面の見た目: disabled を渡さなければ押せて不透明度 1（既定は押せる）", () => {
+  assert.deepEqual(pressLook(undefined, false), {
+    disabled: false,
+    opacity: 1,
+  });
+  assert.deepEqual(pressLook(false, false), { disabled: false, opacity: 1 });
+});
+
+test("押せる面の見た目: 押している間は pressedOpacity、押せないときは disabledOpacity（押していても）", () => {
+  assert.deepEqual(pressLook(undefined, true), {
+    disabled: false,
+    opacity: pressedOpacity.button,
+  });
+  assert.deepEqual(pressLook(true, false), {
+    disabled: true,
+    opacity: disabledOpacity,
+  });
+  assert.deepEqual(pressLook(true, true), {
+    disabled: true,
+    opacity: disabledOpacity,
+  });
+  assert.ok(disabledOpacity > 0 && disabledOpacity < pressedOpacity.button);
 });
 
 test("space は小さい順に並び、radius・size・font はどれも正の数", () => {
