@@ -1,4 +1,4 @@
-// 親の番号入力の状態遷移（数字キー・消す・つなぐ・結果の受け取り）と、「つなぐ」を押せるかの判定。
+// 親の番号入力の状態遷移（数字キー・消す・消すの長押し・つなぐ・結果の受け取り）と、「つなぐ」を押せるかの判定。
 // 純関数だけを置く（React・React Native・バックエンドに依存しない）。画面はこれを使うだけにする。
 //   - 6 桁そろっても自動では送らない（送るのは beginSend だけ）。
 //   - 失敗しても数字は残す。ただし断られた番号は、数字を 1 つでも変えるまで送り直せない
@@ -47,6 +47,13 @@ export function pressDigit(
 export function eraseDigit(s: PairingInputState): PairingInputState {
   if (s.busy || s.code.length === 0) return s;
   return { ...s, code: s.code.slice(0, -1) };
+}
+
+// 「消す」の長押し。数字を全部消す（期限切れ・使用済みのあとに 6 回押さずに打ち直せるように）。
+// 失敗しても数字を残す決定は変えない（これは利用者が明示に選ぶ操作）。理由の文は eraseDigit と同じく残す。
+export function eraseAll(s: PairingInputState): PairingInputState {
+  if (s.busy || s.code.length === 0) return s;
+  return { ...s, code: "" };
 }
 
 export function canSend(s: PairingInputState, now: number): boolean {

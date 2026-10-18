@@ -3,6 +3,8 @@
 // （DB は失敗を毎回数え、回数超えの間に送った回も数えるので、1 タップの送り直しでロックが延び続ける）、
 // 通信の失敗のときだけ同じ番号で送り直せること、まちがいが多いと断られたら窓の間は送れないこと、
 // 送っている間は数字を変えられないこと。
+// 「消す」の長押し（eraseAll）は数字を全部消すこと（1 タップの eraseDigit は 1 桁のまま）。期限切れ・使用済みの
+// あとは残った 6 桁が使えないので、6 回押さずに打ち直せるように。数字を残す決定は変えない（長押しは利用者の明示の操作）。
 import "./ts-resolve.mjs";
 
 import assert from "node:assert/strict";
@@ -14,6 +16,7 @@ const { ATTEMPT_WINDOW_MS, INVITE_CODE_LENGTH } =
 const {
   beginSend,
   canSend,
+  eraseAll,
   eraseDigit,
   finishSend,
   initialPairingInput,
@@ -158,4 +161,31 @@ test("送り始めると前の理由の文は消え、ok なら理由は出さ�
   const done = finishSend(sending, "ok", T0);
   assert.equal(done.busy, false);
   assert.equal(done.failure, null);
+});
+
+test("「消す」の長押し（eraseAll）は数字を全部消す。1 タップ（eraseDigit）は 1 桁のまま", () => {
+  const s = typed("307114");
+  assert.equal(eraseDigit(s).code, "30711", "1 タップは 1 桁");
+  assert.equal(eraseAll(s).code, "", "長押しは全部");
+  assert.equal(eraseAll(typed("3")).code, "");
+  assert.equal(
+    eraseAll(initialPairingInput),
+    initialPairingInput,
+    "空なら変えない",
+  );
+});
+
+test("期限切れ・使用済みで断られたあと、長押しで全部消して打ち直すと押せる。失敗の直後は数字が残る", () => {
+  for (const reason of ["expired", "used"]) {
+    const failed = sendAndFinish(typed("307114"), reason);
+    assert.equal(failed.code, "307114", "失敗しても数字は残す");
+    const cleared = eraseAll(failed);
+    assert.equal(cleared.code, "");
+    assert.equal(canSend(typed("518220", cleared), T0), true);
+  }
+});
+
+test("送っている間（busy）は長押しでも消えない", () => {
+  const sending = beginSend(typed("307113"), T0);
+  assert.equal(eraseAll(sending), sending);
 });
