@@ -31,6 +31,10 @@ jobs:
       - name: 依存のインストール
         run: npm ci
 
+      - name: Expo の同梱版とのずれの検査（expo install --check）
+        # Expo SDK が版を決める依存が同梱版から外れていたら落とす（Dependabot の対象から外した依存の見張り）
+        run: npx expo install --check
+
       - name: 整形の検査（Prettier）
         run: npm run format:check
 

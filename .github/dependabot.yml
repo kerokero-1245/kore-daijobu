@@ -1,5 +1,9 @@
 # 依存（npm）と GitHub Actions の更新を週 1 回 PR で受け取る
-# react-native・react・react-dom の minor は Expo SDK が版を決めるため、Dependabot の対象から外す。@expo/* と eslint-config-expo の major は SDK の更新と一緒に上げる
+# npm の minor/patch は 1 本のまとめ PR（group minor-and-patch）にし、CI が通ったら
+# dependabot-auto-merge.yml が自動で取り込む。major と GitHub Actions の更新は人が判断する。
+# Expo SDK が版を決める依存（node_modules/expo/bundledNativeModules.json に載っていて package.json にあるもの）は
+# 全部の更新を受けない。上げるときは SDK の更新と一緒に `npx expo install --fix` で揃える（CI の `npx expo install --check` がずれを落とす）。
+# expo 本体は major だけ外す（minor/patch は受ける）。typescript の major も人が判断するので外す。
 version: 2
 updates:
   - package-ecosystem: npm
@@ -15,30 +19,26 @@ updates:
     ignore:
       - dependency-name: expo
         update-types: ["version-update:semver-major"]
-      - dependency-name: "expo-*"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react-native
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react-dom
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react-native
-        update-types: ["version-update:semver-minor"]
-      - dependency-name: react
-        update-types: ["version-update:semver-minor"]
-      - dependency-name: react-dom
-        update-types: ["version-update:semver-minor"]
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
-      - dependency-name: "@expo/*"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: eslint-config-expo
-        update-types: ["version-update:semver-major"]
+      # ここから Expo SDK が版を決める依存（17 個）。update-types を書かないので全部の更新を外す
+      - dependency-name: "@expo/metro-runtime"
       - dependency-name: "@react-native-async-storage/async-storage"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-expo
+      - dependency-name: expo-constants
+      - dependency-name: expo-crypto
+      - dependency-name: expo-device
+      - dependency-name: expo-notifications
+      - dependency-name: expo-secure-store
+      - dependency-name: expo-status-bar
+      - dependency-name: react
+      - dependency-name: react-dom
+      - dependency-name: react-native
       - dependency-name: react-native-get-random-values
-        update-types: ["version-update:semver-major"]
+      - dependency-name: react-native-safe-area-context
+      - dependency-name: react-native-screens
+      - dependency-name: react-native-svg
+      - dependency-name: react-native-web
 
   - package-ecosystem: github-actions
     directory: /
