@@ -6,6 +6,10 @@
 // 入力の状態と「つなぐ」を押せるかは src/domain/pairingInput.ts が決める（断られた番号は数字を変えるまで送れない）。
 // 低い画面でも「つなぐ」と「消す」がスクロール無しで見えるよう、キーの高さと余白は表示域の高さから決める
 // （src/domain/keypadLayout.ts）。失敗の理由は説明文の場所に出して、全体の高さを変えない。
+// 子のスマホで「親のスマホ」を選んでしまったときのために、「つなぐ」の下に「役割を選び直す」を置く
+// （子の番号の画面と同じ形。押すと session の restart で、サインアウトして新しい匿名ユーザーで役割の選択へ）。
+// まだつながっていないので消える相談は無く、確かめずに戻す。送っている間は押せない
+// （引き換えが済んだあとにサインアウトすると、子が誰もいない親とつながるため）。
 
 import React, { useEffect, useState } from "react";
 import {
@@ -66,7 +70,7 @@ function failureMessage(failure: SendFailure): string {
 }
 
 export default function ParentPairingScreen() {
-  const { redeemInvite } = useSession();
+  const { redeemInvite, restart } = useSession();
   const [input, setInput] = useState(initialPairingInput);
   // 送れるかの判定に使う時刻。待つ窓が明けたときに進める。
   const [now, setNow] = useState(() => Date.now());
@@ -212,6 +216,16 @@ export default function ParentPairingScreen() {
           disabled={busy}
         />
       </View>
+      <View style={styles.reselect}>
+        <Text style={styles.reselectNote}>
+          このスマホが子のスマホなら、役割を選び直してください。
+        </Text>
+        <BigButton
+          label="役割を選び直す"
+          onPress={() => void restart()}
+          disabled={busy}
+        />
+      </View>
     </Screen>
   );
 }
@@ -259,4 +273,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.orangeSoft,
   },
   eraseText: { ...textStyle.bodyStrong },
+  reselect: { marginTop: space.xl, gap: space.sm },
+  reselectNote: { ...textStyle.bodySub, lineHeight: lineHeight.body },
 });
