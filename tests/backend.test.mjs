@@ -773,6 +773,14 @@ describe("ペアリングの純関数", () => {
     assert.equal(toRedeemReason(undefined), "invalid");
   });
 
+  // 親の待ちには前面復帰の読み直しが無く、役割は起動時にだけ読む。アプリを切り替えて戻るだけでは
+  // 役割の選択に戻らないので、案内は「一度終了してから開き直す」と書く。
+  test("not_parent の案内は、アプリを一度終了してから開き直して「親のスマホ」を選び直す手順", () => {
+    const m = redeemMessage("not_parent");
+    assert.match(m, /アプリを一度終了してから開き直して/);
+    assert.match(m, /「親のスマホ」を選び直してください/);
+  });
+
   test("番号の形は数字 6 桁だけ", () => {
     assert.ok(isInviteCode("012345"));
     for (const s of ["12345", "1234567", "12345a", " 123456", ""])
