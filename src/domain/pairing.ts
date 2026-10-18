@@ -27,6 +27,17 @@ export const INVITE_TTL_MS = 10 * 60 * 1000;
 export const MAX_FAILED_ATTEMPTS = 5;
 export const ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
 
+// 子が親を待つ間に読み直す間隔。番号の期限を過ぎたら、その番号ではつながらないので間隔を延ばす
+// （止めはしない。端末の時計のずれと、購読の取りこぼしに備える）。新しい番号を出すと 5 秒に戻る。
+export const WAIT_POLL_MS = 5000;
+export const WAIT_POLL_SLOW_MS = 60 * 1000;
+
+export function waitPollDelay(now: number, expiresAt: number | null): number {
+  return expiresAt !== null && now >= expiresAt
+    ? WAIT_POLL_SLOW_MS
+    : WAIT_POLL_MS;
+}
+
 export function isInviteCode(code: string): boolean {
   return /^[0-9]{6}$/.test(code);
 }

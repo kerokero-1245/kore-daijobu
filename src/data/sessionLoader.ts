@@ -61,7 +61,8 @@ export async function readState(b: Backend): Promise<SessionState> {
 export interface SessionLoader {
   // 読んで画面の状態に入れる。失敗したら起動画面のエラー（loading + error）にする。
   load(): Promise<void>;
-  // 待つ間の保険の読み直し。失敗しても画面に上げない（電波が数秒切れただけで番号の画面を消さない）。
+  // 待つ間の保険の読み直し。ペアだけを読み、つながっていたら全部を読み直して画面に入れる。
+  // 失敗しても画面に上げない（電波が数秒切れただけで番号の画面を消さない）。
   refreshQuietly(): Promise<void>;
 }
 
@@ -91,7 +92,16 @@ export function createSessionLoader(
         },
       );
     },
-    refreshQuietly: () => {
+    refreshQuietly: async () => {
+      // 数秒おきに走るので、まずペアだけを読む（サインインと役割は、つながったときだけ読み直す）。
+      let pair: PairInfo | null;
+      try {
+        pair = await options.backend().getPair();
+      } catch (e: unknown) {
+        warn("読み直しに失敗しました（次の回で読み直します）", e);
+        return;
+      }
+      if (pair?.status !== "active") return;
       const seq = latest.begin();
       return readState(options.backend()).then(
         (next) => {

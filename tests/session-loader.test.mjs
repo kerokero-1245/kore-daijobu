@@ -4,6 +4,7 @@
 //     後から始めた読み込みの結果がもう入っていたら、先に始めた方の結果も失敗も画面に入れない
 //     （受信一覧 → 番号の画面 → 受信一覧と揺れない。成功の後に古い失敗が着いてエラー画面にならない）
 //   - 待つ間の読み直しの失敗は画面に上げない
+//   - 待つ間の読み直しは getPair だけを読み、つながったときだけ全部を読み直す
 // バックエンドは手で応答を返せる偽物（呼ばれた順に応答を決める）。
 import "./ts-resolve.mjs";
 
@@ -127,6 +128,48 @@ describe("sessionLoader: 重なった読み込みの順番", () => {
 });
 
 describe("sessionLoader: 待つ間の読み直し", () => {
+  // 読み直しは数秒おきに走るので、毎回のサインイン（実機では保存域を読んで復号し、印を書く）と
+  // 変わらない役割の読み直しをしない。ペアだけを読み、つながったときだけ全部を読み直す。
+  test("まだつながっていなければ、getPair だけを呼び、画面は変えない", async () => {
+    const { pairs, calls, applied, loader } = setup("child");
+    const p = loader.refreshQuietly();
+    await flush();
+    pairs[0].resolve({ pairId: "p-1", role: "child", status: "pending" });
+    await p;
+    assert.deepEqual(calls, {
+      signIn: 0,
+      getRole: 0,
+      getPair: 1,
+      createPair: 0,
+    });
+    assert.deepEqual(applied, []);
+  });
+
+  test("つながっていたら、全部を読み直して受信一覧の状態にする", async () => {
+    const { pairs, calls, applied, loader } = setup("child");
+    const p = loader.refreshQuietly();
+    await flush();
+    pairs[0].resolve({ pairId: "p-1", role: "child", status: "active" });
+    await flush();
+    pairs[1].resolve({ pairId: "p-1", role: "child", status: "active" });
+    await p;
+    assert.equal(calls.signIn, 1);
+    assert.deepEqual(applied, [
+      { status: "paired", role: "child", pairId: "p-1" },
+    ]);
+  });
+
+  test("つながった後の読み直しが失敗しても、画面に上げない", async () => {
+    const { pairs, applied, loader } = setup("child");
+    const p = loader.refreshQuietly();
+    await flush();
+    pairs[0].resolve({ pairId: "p-1", role: "child", status: "active" });
+    await flush();
+    pairs[1].reject(new Error("pairs: offline"));
+    await p;
+    assert.deepEqual(applied, []);
+  });
+
   test("読み直しの失敗は画面に上げない", async () => {
     const { pairs, applied, loader } = setup("child");
     const p = loader.refreshQuietly();

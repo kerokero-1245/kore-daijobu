@@ -8,19 +8,20 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { AppState } from "react-native";
 
 import { backend, requireBackend } from "./backendInstance";
 import type { Invite, RedeemResult } from "./backend";
-import { pollWhile } from "./poll";
 import {
   createSessionLoader,
   sameState,
   type SessionState,
 } from "./sessionLoader";
-import type { Role } from "../domain/pairing";
+import { startWaitWatch } from "./waitWatch";
+import { waitPollDelay, type Role } from "../domain/pairing";
 
 export type { SessionState } from "./sessionLoader";
 
@@ -38,9 +39,6 @@ const SessionContext = createContext<SessionValue | null>(null);
 
 const CONFIG_ERROR =
   "設定がありません。このアプリは、まだ使える状態になっていません。";
-
-// 子が親を待つ間に読み直す間隔。
-const CHILD_WAIT_POLL_MS = 5000;
 
 const INITIAL: SessionState = backend
   ? { status: "loading" }
@@ -70,23 +68,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (backend) void load();
   }, [load]);
 
-  // 子は、親の端末で番号が入って pairs が active になるのを待つ。前面に戻ったときと、待つ間は数秒おきにも読み直す。
+  // 子が出している番号の期限（読み直しの間隔を決める。期限を過ぎたら間隔を延ばす）。
+  const inviteExpiresAt = useRef<number | null>(null);
+
+  // 子は、親の端末で番号が入って pairs が active になるのを待つ。ペアの変化の購読・前面復帰・
+  // 数秒おきの読み直しをまとめて始め、待ち画面を離れたらまとめて止める（waitWatch.ts）。
   const waitingPairId = state.status === "child_unpaired" ? state.pairId : null;
   useEffect(() => {
     if (!waitingPairId) return;
-    const stop = requireBackend().subscribePair(waitingPairId, (e) => {
-      if (e.kind !== "consultation") void refreshQuietly();
+    return startWaitWatch({
+      subscribe: (onChange) =>
+        requireBackend().subscribePair(waitingPairId, (e) => {
+          if (e.kind !== "consultation") onChange();
+        }),
+      onForeground: (fn) => {
+        const sub = AppState.addEventListener("change", (s) => {
+          if (s === "active") fn();
+        });
+        return () => sub.remove();
+      },
+      check: () => void refreshQuietly(),
+      delay: () => waitPollDelay(Date.now(), inviteExpiresAt.current),
     });
-    const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") void refreshQuietly();
-    });
-    // 購読が確立する前の更新は届かないため、待つ間は購読だけに頼らず数秒おきに読み直す。
-    const stopPoll = pollWhile(() => void refreshQuietly(), CHILD_WAIT_POLL_MS);
-    return () => {
-      stop();
-      sub.remove();
-      stopPoll();
-    };
   }, [waitingPairId, refreshQuietly]);
 
   const chooseRole = useCallback(
@@ -122,7 +125,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [load]);
 
   // 画面の effect の依存に入るので、同じ関数を使い続ける（作り直すと子の番号が出し直しになる）。
-  const createInvite = useCallback(() => requireBackend().createInvite(), []);
+  const createInvite = useCallback(
+    () =>
+      requireBackend()
+        .createInvite()
+        .then((invite) => {
+          inviteExpiresAt.current = invite.expiresAt;
+          return invite;
+        }),
+    [],
+  );
 
   const retry = useCallback(() => {
     setState({ status: "loading" });
