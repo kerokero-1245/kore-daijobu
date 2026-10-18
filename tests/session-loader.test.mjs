@@ -5,6 +5,8 @@
 //     （受信一覧 → 番号の画面 → 受信一覧と揺れない。成功の後に古い失敗が着いてエラー画面にならない）
 //   - 待つ間の読み直しの失敗は画面に上げない
 //   - 待つ間の読み直しは getPair だけを読み、つながったときだけ全部を読み直す
+//   - 番号の引き換えが DB では済んだのに応答が失われたとき（送れなかった → 押し直すと used・already_paired）、
+//     読み直してホームへ進む（アプリを終了して開き直すまで番号の画面に残らない）
 // バックエンドは手で応答を返せる偽物（呼ばれた順に応答を決める）。
 import "./ts-resolve.mjs";
 
@@ -13,6 +15,8 @@ import { describe, test } from "node:test";
 
 const { createSessionLoader, LOAD_ERROR } =
   await import("../src/data/sessionLoader.ts");
+const { FakeBackend, createMemoryHub } =
+  await import("../src/data/fakeBackend.ts");
 
 // getPair の応答を呼ばれた順に手で返せる偽のバックエンド（役割は親か子で固定）。
 function deferredBackend(role) {
@@ -176,6 +180,93 @@ describe("sessionLoader: 待つ間の読み直し", () => {
     await flush();
     pairs[0].reject(new Error("pairs: offline"));
     await p;
+    assert.deepEqual(applied, []);
+  });
+});
+
+describe("sessionLoader: 番号の引き換えのあと", () => {
+  // 子が番号を出し、親が「親のスマホ」を選んで番号の画面にいるところまで（偽バックエンド・メモリ）。
+  async function pairing() {
+    const hub = createMemoryHub();
+    let n = 0;
+    const newId = () =>
+      `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+    const device = () => new FakeBackend({ storage: hub.device(), newId });
+    const child = device();
+    await child.signIn();
+    await child.setRole("child");
+    await child.createPair();
+    const { code } = await child.createInvite();
+    const parent = device();
+    await parent.signIn();
+    await parent.setRole("parent");
+    const applied = [];
+    const loader = createSessionLoader({
+      backend: () => parent,
+      apply: (s) => applied.push(s),
+    });
+    await loader.load();
+    assert.deepEqual(applied, [{ status: "parent_unpaired" }]);
+    applied.length = 0;
+    return { device, parent, code, applied, loader };
+  }
+  const HOME = { status: "paired", role: "parent" };
+  const statuses = (applied) =>
+    applied.map((s) => ({ status: s.status, role: s.role }));
+
+  test("つながったら、読み直して親のホームの状態にする", async () => {
+    const { code, applied, loader } = await pairing();
+    const r = await loader.redeem(code);
+    assert.equal(r.reason, "ok");
+    assert.deepEqual(statuses(applied), [HOME]);
+  });
+
+  test("引き換えは済んだのに応答が失われた（送れなかった）ときも、読み直してホームへ進む", async () => {
+    const { parent, code, applied, loader } = await pairing();
+    const real = parent.redeemInvite.bind(parent);
+    parent.redeemInvite = async (c) => {
+      await real(c);
+      throw new Error("redeem_invite: 応答が届かない");
+    };
+    await assert.rejects(loader.redeem(code));
+    await flush();
+    await flush();
+    assert.deepEqual(statuses(applied), [HOME]);
+  });
+
+  test("押し直して used が返っても、自分のペアがつながっていればホームへ進む", async () => {
+    const { parent, code, applied, loader } = await pairing();
+    await parent.redeemInvite(code);
+    const r = await loader.redeem(code);
+    assert.equal(r.reason, "used");
+    await flush();
+    await flush();
+    assert.deepEqual(statuses(applied), [HOME]);
+  });
+
+  test("already_paired が返っても、自分のペアがつながっていればホームへ進む", async () => {
+    const { device, parent, code, applied, loader } = await pairing();
+    await parent.redeemInvite(code);
+    // 別の子の番号（親はもうつながっているので already_paired になる）。
+    const other = device();
+    await other.signIn();
+    await other.setRole("child");
+    await other.createPair();
+    const next = await other.createInvite();
+    const r = await loader.redeem(next.code);
+    assert.equal(r.reason, "already_paired");
+    await flush();
+    await flush();
+    assert.deepEqual(statuses(applied), [HOME]);
+  });
+
+  test("ちがう番号（invalid）なら読み直さず、番号の画面のまま", async () => {
+    const { code, applied, loader } = await pairing();
+    const wrong = code === "000000" ? "000001" : "000000";
+    const r = await loader.redeem(wrong);
+    assert.equal(r.reason, "invalid");
+    await flush();
+    await flush();
     assert.deepEqual(applied, []);
   });
 });

@@ -105,14 +105,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [load],
   );
 
-  const redeemInvite = useCallback(
-    async (code: string) => {
-      const result = await requireBackend().redeemInvite(code);
-      if (result.ok) await load();
-      return result;
-    },
-    [load],
-  );
+  const redeemInvite = loader.redeem;
 
   const restart = useCallback(async () => {
     setState({ status: "loading" });

@@ -80,6 +80,12 @@ export function redeemMessage(reason: Exclude<RedeemReason, "ok">): string {
   return REDEEM_MESSAGE[reason];
 }
 
+// 断られたあとに、自分のペアを 1 回読み直すか。used・already_paired は、前に送った番号が DB では
+// 引き換え済み（応答だけが失われた）でも返る。読み直してつながっていれば、親のホームへ進める。
+export function recheckAfterRedeem(reason: RedeemReason): boolean {
+  return reason === "used" || reason === "already_paired";
+}
+
 const REASONS: Record<RedeemReason, true> = {
   ok: true,
   too_many_attempts: true,

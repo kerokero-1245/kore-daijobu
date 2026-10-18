@@ -4,9 +4,14 @@
 //           → parent_unpaired（親。番号を入れる）
 //           → paired（つながった。親はホーム、子は受信一覧）
 
-import type { Backend } from "./backend";
+import type { Backend, RedeemResult } from "./backend";
 import { createLatest } from "./latest";
-import { sessionStatusOf, type PairInfo, type Role } from "../domain/pairing";
+import {
+  recheckAfterRedeem,
+  sessionStatusOf,
+  type PairInfo,
+  type Role,
+} from "../domain/pairing";
 
 export type SessionState =
   // fatal: もう一度ためしても直らない（設定が無い）。起動画面に「もう一度」を出さない。
@@ -64,6 +69,9 @@ export interface SessionLoader {
   // 待つ間の保険の読み直し。ペアだけを読み、つながっていたら全部を読み直して画面に入れる。
   // 失敗しても画面に上げない（電波が数秒切れただけで番号の画面を消さない）。
   refreshQuietly(): Promise<void>;
+  // 親の端末で番号を引き換える。つながったら読み直して親のホームの状態にする。
+  // 送れなかった・used・already_paired のあとも 1 回読み直す（前の送信が DB では済んでいたら、ホームへ進む）。
+  redeem(code: string): Promise<RedeemResult>;
 }
 
 export interface SessionLoaderOptions {
@@ -78,7 +86,20 @@ export function createSessionLoader(
   const { apply } = options;
   const warn = options.warn ?? (() => {});
   const latest = createLatest();
-  return {
+  const loader: SessionLoader = {
+    redeem: async (code) => {
+      let result: RedeemResult;
+      try {
+        result = await options.backend().redeemInvite(code);
+      } catch (e) {
+        // 送れなかった。DB では引き換えが済み、応答だけが失われたこともあるので 1 回読み直す。
+        void loader.refreshQuietly();
+        throw e;
+      }
+      if (result.ok) await loader.load();
+      else if (recheckAfterRedeem(result.reason)) void loader.refreshQuietly();
+      return result;
+    },
     load: () => {
       const seq = latest.begin();
       return readState(options.backend()).then(
@@ -117,4 +138,5 @@ export function createSessionLoader(
       );
     },
   };
+  return loader;
 }
