@@ -29,8 +29,8 @@ type SessionValue = SessionState & {
   chooseRole: (role: Role) => Promise<void>;
   createInvite: () => Promise<Invite>;
   redeemInvite: (code: string) => Promise<RedeemResult>;
-  // サインアウトして新しい匿名ユーザーで最初からやり直す
-  // （「つなぎ直す」を押したとき）。
+  // 前の番号と未完了のペアを消してからサインアウトし、新しい匿名ユーザーで最初からやり直す
+  // （「つなぎ直す」「役割を選び直す」を押したとき）。
   restart: () => Promise<void>;
   retry: () => void;
 };
@@ -107,8 +107,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const redeemInvite = loader.redeem;
 
+  // 子の番号の画面・親の番号の画面の「役割を選び直す」とホームの「つなぎ直す」が呼ぶ。
+  // サインアウトの前に、自分が子の pending のペアと番号を消す（消さないと前の番号が期限まで使え、
+  // 入れた親は誰もいない匿名ユーザーとつながる）。親や該当なしでは何もしない。消せなくてもサインアウトは止めない。
   const restart = useCallback(async () => {
     setState({ status: "loading" });
+    try {
+      await requireBackend().cancelPendingPair();
+    } catch (e) {
+      console.warn("前の番号を消せませんでした", e);
+    }
     try {
       await requireBackend().signOut();
     } catch (e) {

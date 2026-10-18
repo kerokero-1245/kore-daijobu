@@ -1,7 +1,7 @@
 // 端末内の偽バックエンド。Supabase の設定が無いときと、テストで使う。
 // 中身は DB と同じ形の行（snake_case・時刻は ISO 文字列）で持ち、読むときは rowToConsultation を通す。
 // 権限と招待の規則は supabase/migrations/20261016000000_init.sql（RLS・create_invite・redeem_invite・
-// 返信のトリガー）と同じ順で検査する。保存先は FakeStorage で差し替える:
+// 返信のトリガー）と 20261018000000_cancel_pending_pair.sql と同じ順で検査する。保存先は FakeStorage で差し替える:
 //   Web … データは localStorage（タブ間で共有し、storage イベントで他タブへ伝える）、
 //          サインイン中の利用者は sessionStorage（タブごとに別の人 = 2 タブで親子を試せる）
 //   テスト … メモリ（createMemoryHub で「端末」を何台でも作れる）
@@ -317,6 +317,21 @@ export class FakeBackend implements Backend {
     });
     this.#write(db);
     return id;
+  }
+
+  // cancel_pending_pair と同じ: 自分が子の pending のペアを消し、その番号も消す（on delete cascade）。
+  async cancelPendingPair(): Promise<void> {
+    const uid = this.#uid();
+    const db = this.#read();
+    const gone = new Set(
+      db.pairs
+        .filter((p) => p.child_id === uid && p.status === "pending")
+        .map((p) => p.id),
+    );
+    if (gone.size === 0) return;
+    db.pairs = db.pairs.filter((p) => !gone.has(p.id));
+    db.invites = db.invites.filter((i) => !gone.has(i.pair_id));
+    this.#write(db);
   }
 
   async createInvite(): Promise<Invite> {

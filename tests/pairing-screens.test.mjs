@@ -8,6 +8,9 @@
 //   - 子の番号の画面の「役割を選び直す」: session の restart（サインアウト → 新しい匿名ユーザーで読み直す。
 //     ホームの「つなぎ直す」と同じ関数）を確かめずに呼ぶ。画面は signOut を自分で呼ばない
 //     （サインアウトの呼び出しは src/data/session.tsx の 1 か所だけ）
+//   - session.tsx の restart は、サインアウトの前に cancelPendingPair（自分が子の pending のペアと番号を消す）を呼ぶ。
+//     失敗してもサインアウトと読み直しは止めない。呼ぶのは restart の 1 か所だけ（画面ごとに書かない）
+//     （なぜ: 消さずにサインアウトすると、前の番号が期限まで使え、親が誰もいない匿名ユーザーとつながる）
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, test } from "node:test";
@@ -90,6 +93,34 @@ describe("サインアウトの呼び出しは session.tsx の 1 か所だけ", 
           : [],
     );
   }
+
+  test("バックエンドの cancelPendingPair() を呼ぶのも src/data/session.tsx だけ", () => {
+    const all = files(new URL("../src/", import.meta.url));
+    assert.ok(all.length > 0, "src の .ts / .tsx が 0 件");
+    const callers = all
+      .filter((u) => /\.cancelPendingPair\(\)/.test(readFileSync(u, "utf8")))
+      .map((u) => u.pathname.replace(/^.*\/src\//, "src/"));
+    assert.deepEqual(callers, ["src/data/session.tsx"]);
+  });
+
+  test("restart は cancelPendingPair → signOut → load の順で呼び、cancelPendingPair の失敗では止まらない", () => {
+    const src = readFileSync(
+      new URL("../src/data/session.tsx", import.meta.url),
+      "utf8",
+    );
+    const start = src.indexOf("const restart = useCallback(");
+    assert.ok(start >= 0, "restart が見つからない");
+    const body = src.slice(start, src.indexOf("}, [load]);", start));
+    const cancel = body.indexOf(".cancelPendingPair()");
+    const signOut = body.indexOf(".signOut()");
+    const load = body.indexOf("await load()");
+    assert.ok(cancel >= 0, `restart が cancelPendingPair を呼ばない:\n${body}`);
+    assert.ok(cancel < signOut && signOut < load, body);
+    // cancelPendingPair は自分の try の中（失敗しても signOut へ進む）。
+    const tryAt = body.lastIndexOf("try {", cancel);
+    const catchAt = body.indexOf("} catch", cancel);
+    assert.ok(tryAt >= 0 && catchAt > cancel && catchAt < signOut, body);
+  });
 
   test("バックエンドの signOut() を呼ぶのは src/data/session.tsx だけ", () => {
     const all = files(new URL("../src/", import.meta.url));

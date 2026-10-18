@@ -39,6 +39,10 @@ export interface Backend {
   setRole(role: Role): Promise<void>;
   // 子が pending のペアを作り、その id を返す。
   createPair(): Promise<string>;
+  // 自分が子の pending のペアを消す（番号も一緒に消え、前の番号は invalid になる）。
+  // 「役割を選び直す」「つなぎ直す」でサインアウトする前に呼ぶ。つながったペア・他人のペアは消さない。
+  // 親や、該当が無いときは何もしない。
+  cancelPendingPair(): Promise<void>;
   // 子が 6 桁の招待を出す。同じペアの古い未使用コードは無効になる。
   createInvite(): Promise<Invite>;
   // 親の端末で招待を引き換える。失敗も例外にせず理由を返す。

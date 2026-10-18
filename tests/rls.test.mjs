@@ -1,4 +1,4 @@
-// Supabase の移行 SQL（supabase/migrations/ の 20261016000000_init.sql と 20261017000000_push_token_claim.sql）の
+// Supabase の移行 SQL（supabase/migrations/ の *.sql。realtime.sql を除く全部）の
 // RLS と整合を、PGlite で検査する。
 // 守るもの:
 //   - 親子の当事者だけが自分のペアの行を読め、他人は全表 0 行・書き込み拒否
@@ -6,13 +6,15 @@
 //   - status は返信の挿入トリガーだけが変える（直接の update は grant で拒否、二重返信も拒否）
 //   - 招待は期限 10 分・使い切り・10 分で失敗 5 回まで。招待・試行・送信記録はクライアントから読めない
 //   - 通知のトークンは register_push_token で、前の利用者の行が残っていても持ち主が移る（未認証は断る）
+//   - 役割を選び直す（cancel_pending_pair → サインアウト）と、前に出した番号は invalid になる。
+//     消えるのは自分が子の pending のペアだけで、他人の pending・つながったペアは消えない
 // Supabase 固有の auth.uid()・auth.users・role anon / authenticated と、public の既定の grant は下で代わりを作る。
-// 流すのは init.sql → push_token_claim.sql の順（名前の順＝本番で流す順）。
+// 流すのはフォルダの *.sql を名前の順（＝本番で流す順。0 本なら失敗）。
 // realtime.sql（20261016000001）は `alter publication supabase_realtime` だけで、その publication は
 // Supabase が作るもので PGlite には無いので流さない（表・関数・権限は変えないので検査の範囲に影響しない）。
-// 環境変数 KORE_INIT_SQL・KORE_CLAIM_SQL で移行 SQL の場所を差し替えられる（変異で red を確かめるため）。
+// 環境変数 KORE_INIT_SQL・KORE_CLAIM_SQL・KORE_CANCEL_SQL で移行 SQL の場所を差し替えられる（変異で red を確かめるため）。
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { after, before, describe, test } from "node:test";
 
 import { PGlite } from "@electric-sql/pglite";
@@ -20,15 +22,17 @@ import { PGlite } from "@electric-sql/pglite";
 import { CATEGORY_ORDER } from "../src/domain/category.ts";
 import { MAX_REPLY_LENGTH } from "../src/domain/reply.ts";
 
-const MIGRATIONS = [
-  process.env.KORE_INIT_SQL ??
-    new URL("../supabase/migrations/20261016000000_init.sql", import.meta.url),
-  process.env.KORE_CLAIM_SQL ??
-    new URL(
-      "../supabase/migrations/20261017000000_push_token_claim.sql",
-      import.meta.url,
-    ),
-];
+const MIGRATIONS_DIR = new URL("../supabase/migrations/", import.meta.url);
+const OVERRIDES = {
+  "20261016000000_init.sql": process.env.KORE_INIT_SQL,
+  "20261017000000_push_token_claim.sql": process.env.KORE_CLAIM_SQL,
+  "20261018000000_cancel_pending_pair.sql": process.env.KORE_CANCEL_SQL,
+};
+const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
+  .filter((f) => f.endsWith(".sql") && !f.endsWith("_realtime.sql"))
+  .sort()
+  .map((f) => OVERRIDES[f] ?? new URL(f, MIGRATIONS_DIR));
+if (MIGRATIONS.length === 0) throw new Error("移行 SQL がありません");
 
 // Supabase にあって素の Postgres に無いもの。auth.uid() は Supabase と同じく JWT の sub を読む。
 // public の既定の grant（anon・authenticated に全権）も Supabase に合わせ、移行の revoke が効くかを試す。
@@ -50,9 +54,18 @@ const PARENT = "00000000-0000-4000-8000-00000000000a";
 const CHILD = "00000000-0000-4000-8000-00000000000c";
 const OTHER = "00000000-0000-4000-8000-00000000000f";
 const NO_PROFILE = "00000000-0000-4000-8000-0000000000ff";
+// 役割を選び直す端末: 前の子（選び直す前の匿名ユーザー）と、同じ端末で次に入って親になる匿名ユーザー。
+const PREV_CHILD = "00000000-0000-4000-8000-0000000000c1";
+const NEXT_PARENT = "00000000-0000-4000-8000-0000000000a1";
 const K1 = "10000000-0000-4000-8000-000000000001";
 const K2 = "10000000-0000-4000-8000-000000000002";
-const ACTORS = { 親: PARENT, 子: CHILD, 他人: OTHER };
+const ACTORS = {
+  親: PARENT,
+  子: CHILD,
+  他人: OTHER,
+  前の子: PREV_CHILD,
+  次の親: NEXT_PARENT,
+};
 
 let db;
 let pairId;
@@ -122,6 +135,11 @@ const rpc = (sql, params) => async (tx) => {
 };
 const createInvite = rpc("select public.create_invite() as r");
 const redeem = (code) => rpc("select public.redeem_invite($1) as r", [code]);
+// 戻り値の無い関数。呼べたら「済」。
+const cancelPending = async (tx) => {
+  await tx.query("select public.cancel_pending_pair()");
+  return { label: "済" };
+};
 
 describe("移行 SQL の RLS と整合（PGlite）", () => {
   before(async () => {
@@ -129,7 +147,7 @@ describe("移行 SQL の RLS と整合（PGlite）", () => {
     await db.exec(SUPABASE_STANDIN);
     for (const m of MIGRATIONS) await db.exec(readFileSync(m, "utf8"));
     await db.exec(
-      `insert into auth.users (id) values ('${PARENT}'), ('${CHILD}'), ('${OTHER}'), ('${NO_PROFILE}')`,
+      `insert into auth.users (id) values ('${PARENT}'), ('${CHILD}'), ('${OTHER}'), ('${NO_PROFILE}'), ('${PREV_CHILD}'), ('${NEXT_PARENT}')`,
     );
   });
   after(async () => {
@@ -419,6 +437,146 @@ describe("移行 SQL の RLS と整合（PGlite）", () => {
       "select",
       "1 行",
       select("select * from public.pairs"),
+    );
+  });
+
+  test("cancel_pending_pair: 役割を選び直すと前の番号は invalid。他人の pending・つながったペアは消えない", async () => {
+    // 前の子: 親のスマホで「子のスマホ」を選んでしまい、番号 X を出した。
+    await check(
+      "前の子",
+      "profiles",
+      "insert 自分",
+      "1 行",
+      write(
+        "insert into public.profiles (id, role, display_name) values ($1, 'child', '子')",
+        [PREV_CHILD],
+      ),
+    );
+    await check(
+      "前の子",
+      "pairs",
+      "insert pending",
+      "1 行",
+      write("insert into public.pairs (child_id) values ($1)", [PREV_CHILD]),
+    );
+    const x = await check(
+      "前の子",
+      "create_invite",
+      "rpc",
+      "code",
+      createInvite,
+    );
+    const pendingOfPrev = select(
+      "select 1 from public.pairs where child_id = $1 and status = 'pending'",
+      [PREV_CHILD],
+    );
+
+    await check("anon", "cancel_pending_pair", "rpc", "grant", cancelPending);
+    await check(
+      "他人",
+      "cancel_pending_pair",
+      "rpc（自分のペアなし）",
+      "済",
+      cancelPending,
+    );
+    await check(
+      "service",
+      "pairs",
+      "select 他人が呼んでも前の子の pending は残る",
+      "1 行",
+      pendingOfPrev,
+    );
+
+    // 「役割を選び直す」: cancel_pending_pair → サインアウト（以後この匿名ユーザーは使われない）。
+    await check(
+      "前の子",
+      "cancel_pending_pair",
+      "rpc 選び直す",
+      "済",
+      cancelPending,
+    );
+    await check(
+      "service",
+      "pairs",
+      "select 前の子の pending",
+      "0 行",
+      pendingOfPrev,
+    );
+    await check(
+      "service",
+      "pair_invites",
+      "select 前の番号（cascade で消える）",
+      "0 行",
+      select("select 1 from public.pair_invites where code = $1", [x.code]),
+    );
+    await check(
+      "前の子",
+      "cancel_pending_pair",
+      "rpc 該当なしでもう一度",
+      "済",
+      cancelPending,
+    );
+
+    // 同じ端末の次の匿名ユーザーが「親のスマホ」を選び、画面の案内どおり前の番号 X を入れる。
+    await check(
+      "次の親",
+      "profiles",
+      "insert 自分",
+      "1 行",
+      write(
+        "insert into public.profiles (id, role, display_name) values ($1, 'parent', '親')",
+        [NEXT_PARENT],
+      ),
+    );
+    await check(
+      "次の親",
+      "redeem_invite",
+      "rpc 選び直す前の番号",
+      "invalid",
+      redeem(x.code),
+    );
+    await check(
+      "次の親",
+      "pairs",
+      "select（どのペアにも入っていない）",
+      "0 行",
+      select("select * from public.pairs"),
+    );
+
+    // つながったペア（使用済みの番号）は、子が呼んでも親が呼んでも消えない。
+    await check(
+      "子",
+      "cancel_pending_pair",
+      "rpc つながったペアの子",
+      "済",
+      cancelPending,
+    );
+    await check(
+      "親",
+      "cancel_pending_pair",
+      "rpc つながったペアの親",
+      "済",
+      cancelPending,
+    );
+    await check(
+      "service",
+      "pairs",
+      "select つながったペアが残る",
+      "1 行",
+      select(
+        "select 1 from public.pairs where id = $1 and status = 'active' and parent_id = $2 and child_id = $3",
+        [pairId, PARENT, CHILD],
+      ),
+    );
+    await check(
+      "service",
+      "pair_invites",
+      "select 使用済みの番号が残る",
+      "1 行",
+      select(
+        "select 1 from public.pair_invites where pair_id = $1 and used_at is not null",
+        [pairId],
+      ),
     );
   });
 

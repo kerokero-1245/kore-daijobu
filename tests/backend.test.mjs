@@ -3,6 +3,8 @@
 //   - FakeBackend の招待が DB（supabase/migrations/20261016000000_init.sql の create_invite / redeem_invite）と
 //     同じ規則で動くこと: 6 桁・10 分・使い切り・新しい番号で古い番号は無効・失敗が 10 分で 5 回に達したら断る・
 //     引き換えられるのは親の役割の人だけ・つながった親は 2 本目を結べない
+//   - FakeBackend の cancelPendingPair が DB（20261018000000_cancel_pending_pair.sql）と同じに、自分が子の
+//     pending のペアと番号だけを消すこと（役割を選び直したあと、前の番号は invalid）
 //   - FakeBackend の書き込みの役割の検査（相談は親だけ・返信は子だけで 1 回・他人には 0 行）と、
 //     返信で status が answered になること・別の端末の書き込みが購読に届くこと
 //   - SupabaseBackend が呼ぶ表名・関数名・filter・チャンネル名（呼び出しを記録する偽の client で検査）と、
@@ -211,6 +213,74 @@ describe("FakeBackend: 招待の引き換え（規則 × 役割 × 期限）", (
     const wrong = code === "000000" ? "000001" : "000000";
     for (let i = 0; i < 5; i++) await p1.redeemInvite(wrong);
     assert.equal((await p2.redeemInvite(code)).reason, "ok");
+  });
+});
+
+describe("FakeBackend: 役割を選び直す（cancelPendingPair）", () => {
+  test("子が番号を出したあとに選び直す（cancelPendingPair → サインアウト）と、同じ端末で親になって前の番号を入れても invalid", async () => {
+    const w = world();
+    const phone = await signedIn(w, "child");
+    const before = await phone.getPair();
+    const { code } = await phone.createInvite();
+    await phone.cancelPendingPair();
+    assert.equal(await phone.getPair(), null, "前のペアは消える");
+    await phone.signOut();
+    await phone.signIn();
+    await phone.setRole("parent");
+    assert.deepEqual(await phone.redeemInvite(code), {
+      ok: false,
+      reason: "invalid",
+    });
+    assert.equal(await phone.getPair(), null);
+    assert.ok(before.pairId);
+  });
+
+  test("別の親が打っている間に子が選び直しても、その番号は invalid", async () => {
+    const w = world();
+    const child = await signedIn(w, "child");
+    const parent = await signedIn(w, "parent");
+    const { code } = await child.createInvite();
+    await child.cancelPendingPair();
+    await child.signOut();
+    assert.deepEqual(await parent.redeemInvite(code), {
+      ok: false,
+      reason: "invalid",
+    });
+  });
+
+  test("他人が呼んでも、ほかの子の pending のペアと番号は消えない", async () => {
+    const w = world();
+    const child = await signedIn(w, "child");
+    const other = await signedIn(w, "child");
+    const parent = await signedIn(w, "parent");
+    const { code } = await child.createInvite();
+    await other.cancelPendingPair();
+    await parent.cancelPendingPair();
+    assert.deepEqual(await parent.redeemInvite(code), {
+      ok: true,
+      reason: "ok",
+    });
+  });
+
+  test("つながったペアは、子が呼んでも親が呼んでも消えない（該当なしは何もしない）", async () => {
+    const { child, parent, pairId } = await paired();
+    await child.cancelPendingPair();
+    await parent.cancelPendingPair();
+    assert.deepEqual(await child.getPair(), {
+      pairId,
+      role: "child",
+      status: "active",
+    });
+    assert.deepEqual(await parent.getPair(), {
+      pairId,
+      role: "parent",
+      status: "active",
+    });
+  });
+
+  test("サインイン前は呼べない", async () => {
+    const w = world();
+    await assert.rejects(w.device().cancelPendingPair(), /not signed in/);
   });
 });
 
@@ -426,6 +496,7 @@ async function driveAll(client) {
   await b.createPair().catch(() => {}); // 偽の client は id を返さない
   await b.createInvite().catch(() => {});
   await b.redeemInvite("123456");
+  await b.cancelPendingPair();
   await b.getPair();
   await b.listConsultations(PAIR, 50);
   await b.getConsultation("c1");
@@ -468,6 +539,7 @@ describe("SupabaseBackend: 呼ぶ表・関数・filter", () => {
     ].sort();
     assert.deepEqual(tables, ["consultations", "pairs", "profiles", "replies"]);
     assert.deepEqual(rpcs, [
+      "cancel_pending_pair",
       "create_invite",
       "redeem_invite",
       "register_push_token",

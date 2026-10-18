@@ -135,6 +135,11 @@ export class SupabaseBackend implements Backend {
     return id;
   }
 
+  async cancelPendingPair(): Promise<void> {
+    const { error } = await this.#client.rpc("cancel_pending_pair");
+    if (error) fail("cancel_pending_pair", error);
+  }
+
   async createInvite(): Promise<Invite> {
     const { data, error } = await this.#client.rpc("create_invite");
     if (error) fail("create_invite", error);

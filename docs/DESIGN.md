@@ -178,12 +178,13 @@ MVPは **親1 ↔ 子1 の1対1**。ただしデータ設計は将来「複数�
 
 ## 5. データモデル（Supabase / Postgres）
 
-表・制約・RLS・招待の関数・返信のトリガーの正本は [supabase/migrations/](../supabase/migrations/)（`20261016000000_init.sql`・Realtime の `20261016000001_realtime.sql`・通知のトークンの登録の `20261017000000_push_token_claim.sql`）。要点:
+表・制約・RLS・招待の関数・返信のトリガーの正本は [supabase/migrations/](../supabase/migrations/)（`20261016000000_init.sql`・Realtime の `20261016000001_realtime.sql`・通知のトークンの登録の `20261017000000_push_token_claim.sql`・役割を選び直す前に未完了のペアを消す `20261018000000_cancel_pending_pair.sql`）。要点:
 
 - 表は profiles（auth.users と同じ id・役割）/ pairs（子が pending で作り、招待の引き換えで active）/ pair_invites・invite_attempts（招待と試行。クライアントからは読めない）/ consultations / replies / push_tokens / push_log
 - 守りは DB に置く（anon key はアプリに入るため）。全表に RLS を掛け、自分のペアの当事者だけが読める。相談を作れるのは親、返信できるのは子だけ
 - status は列の grant から外し、返信の挿入トリガーだけが answered にする（「返信あり・返事待ち」を DB でも作れない。画面の判別共用体と同じ不変条件）
 - 招待は `create_invite()` / `redeem_invite(code)` の関数だけで扱う（6 桁・10 分・使い切り・失敗が 10 分で 5 回に達したら断る）
+- 「役割を選び直す」「つなぎ直す」（session の restart）は、サインアウトの前に `cancel_pending_pair()` を呼び、自分が子の pending のペアを消す（番号も on delete cascade で消え、前の番号は invalid になる）。消さないと前の番号が期限まで使え、入れた親はどの端末にもいない匿名ユーザーとつながる。つながったペア・他人のペアは消さず、親や該当なしでは何もしない
 - アプリは `src/data/backend.ts` の窓口だけを使い、開発中に Supabase の設定が無いときは同じ規則の偽バックエンド（`src/data/fakeBackend.ts`）で動く。行は `src/domain/row.ts` で読み、status と返信の組が合わない行は捨てる
 - 相談の id はアプリが作り、先に手元へ足してから送る。送れなければ手元を戻す。相手の変化は Realtime（consultations と pairs）で受け、起動時と前面に戻ったときに最近 50 件を取り直す
 - 購読がつながったとき（SUBSCRIBED）に加えて、変更の配信が始まった知らせ（system）でも取り直す。SUBSCRIBED は配信の確立より先に来るので、その間の変更はどちらにも乗らないため。取り直しが重なったら、後から始めた方の結果が入っていれば先の方の結果は捨てる（`src/data/latest.ts`）
