@@ -5,8 +5,11 @@
 //   - 親の「消す」: 1 タップは eraseDigit、長押しは eraseAll。読み上げのヒントに「長押しで全部消す」
 //   - 親の「つなぐ」: canSend で押せなくしない（押せるまま）。送れない状態で押したら sendBlockMessage の理由を
 //     説明文の場所に出し、iOS は読み上げに通知する（子の返信の「送る」と同じ出し方）。説明文に押す手順を書く
+//   - 子の番号の画面の「役割を選び直す」: session の restart（サインアウト → 新しい匿名ユーザーで読み直す。
+//     ホームの「つなぎ直す」と同じ関数）を確かめずに呼ぶ。画面は signOut を自分で呼ばない
+//     （サインアウトの呼び出しは src/data/session.tsx の 1 か所だけ）
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
 function source(file) {
@@ -58,5 +61,43 @@ describe("親の番号入力（ParentPairingScreen.tsx）", () => {
 
   test("説明文に「6 桁入れて「つなぐ」を押してください」がある", () => {
     assert.ok(src.includes("6 桁入れて「つなぐ」を押してください"));
+  });
+});
+
+describe("子の番号の画面（ChildPairingScreen.tsx）", () => {
+  const src = source("ChildPairingScreen.tsx");
+
+  test("「役割を選び直す」は session の restart を確かめずに呼ぶ", () => {
+    const at = src.indexOf('label="役割を選び直す"');
+    assert.ok(at >= 0, "「役割を選び直す」が見つからない");
+    const tag = src.slice(
+      src.lastIndexOf("<BigButton", at),
+      src.indexOf("/>", at),
+    );
+    assert.ok(tag.includes("onPress={() => void restart()}"), tag);
+    assert.match(src, /const \{[^}]*\brestart\b[^}]*\} = useSession\(\);/);
+  });
+});
+
+describe("サインアウトの呼び出しは session.tsx の 1 か所だけ", () => {
+  // src の .ts / .tsx を全部たどる（0 件なら失敗）。
+  function files(dir) {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory()
+        ? files(new URL(`${e.name}/`, dir))
+        : /\.tsx?$/.test(e.name)
+          ? [new URL(e.name, dir)]
+          : [],
+    );
+  }
+
+  test("バックエンドの signOut() を呼ぶのは src/data/session.tsx だけ", () => {
+    const all = files(new URL("../src/", import.meta.url));
+    assert.ok(all.length > 0, "src の .ts / .tsx が 0 件");
+    const callers = all
+      // supabase-js の auth.signOut() はバックエンドの中身なので数えない。
+      .filter((u) => /(?<!auth)\.signOut\(\)/.test(readFileSync(u, "utf8")))
+      .map((u) => u.pathname.replace(/^.*\/src\//, "src/"));
+    assert.deepEqual(callers, ["src/data/session.tsx"]);
   });
 });

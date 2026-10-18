@@ -7,6 +7,8 @@
 //   - 待つ間の読み直しは getPair だけを読み、つながったときだけ全部を読み直す
 //   - 番号の引き換えが DB では済んだのに応答が失われたとき（送れなかった → 押し直すと used・already_paired）、
 //     読み直してホームへ進む（アプリを終了して開き直すまで番号の画面に残らない）
+//   - サインアウトしてから読み直すと、新しい匿名ユーザーで役割の選択に戻る（session.tsx の restart の中身。
+//     子の番号の画面の「役割を選び直す」とホームの「つなぎ直す」が同じ restart を使う）
 // バックエンドは手で応答を返せる偽物（呼ばれた順に応答を決める）。
 import "./ts-resolve.mjs";
 
@@ -268,5 +270,34 @@ describe("sessionLoader: 番号の引き換えのあと", () => {
     await flush();
     await flush();
     assert.deepEqual(applied, []);
+  });
+});
+
+describe("sessionLoader: サインアウトのあとの読み直し（restart の中身）", () => {
+  test("子の番号の画面からサインアウトして読み直すと、新しい匿名ユーザーで役割の選択に戻る", async () => {
+    const hub = createMemoryHub();
+    let n = 0;
+    const newId = () =>
+      `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+    const phone = new FakeBackend({ storage: hub.device(), newId });
+    const applied = [];
+    const loader = createSessionLoader({
+      backend: () => phone,
+      apply: (s) => applied.push(s),
+    });
+    const before = await phone.signIn();
+    await phone.setRole("child");
+    await phone.createPair();
+    await loader.load();
+    assert.equal(applied.at(-1).status, "child_unpaired");
+
+    await phone.signOut();
+    await loader.load();
+    assert.deepEqual(applied.at(-1), { status: "choose_role" });
+    const after = await phone.signIn();
+    assert.notEqual(after, before, "新しい匿名ユーザーになる");
+    await phone.setRole("parent");
+    await loader.load();
+    assert.deepEqual(applied.at(-1), { status: "parent_unpaired" });
   });
 });

@@ -1,5 +1,8 @@
 // 子のスマホ: 親のスマホに入れる 6 桁の番号を大きく出す。期限は 10 分で、残り時間を出す。
 // 親の端末で番号が入るとペアが active になり、受信一覧へ切り替わる（App.tsx）。
+// 親のスマホで「子のスマホ」を選んでしまったときのために、一番下に「役割を選び直す」を置く。押すと
+// session の restart（ホームの「つなぎ直す」と同じ。サインアウトして新しい匿名ユーザーで役割の選択へ）を
+// 呼ぶ。まだつながっていないので消える相談は無く、確かめずに戻す。
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
@@ -26,7 +29,7 @@ import {
 } from "../../theme";
 
 export default function ChildPairingScreen() {
-  const { createInvite } = useSession();
+  const { createInvite, restart } = useSession();
   const [invite, setInvite] = useState<Invite | null>(null);
   const [error, setError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -108,6 +111,12 @@ export default function ChildPairingScreen() {
       <View style={styles.button}>
         <BigButton label="新しい番号を出す" variant="primary" onPress={issue} />
       </View>
+      <View style={styles.reselect}>
+        <Text style={styles.reselectNote}>
+          このスマホが親のスマホなら、役割を選び直してください。
+        </Text>
+        <BigButton label="役割を選び直す" onPress={() => void restart()} />
+      </View>
     </Screen>
   );
 }
@@ -148,4 +157,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   button: { marginTop: space.xl },
+  reselect: { marginTop: space.xl, gap: space.sm },
+  reselectNote: { ...textStyle.bodySub, lineHeight: lineHeight.body },
 });
