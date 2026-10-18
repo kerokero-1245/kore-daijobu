@@ -5,6 +5,8 @@
 // 送っている間は数字を変えられないこと。
 // 「消す」の長押し（eraseAll）は数字を全部消すこと（1 タップの eraseDigit は 1 桁のまま）。期限切れ・使用済みの
 // あとは残った 6 桁が使えないので、6 回押さずに打ち直せるように。数字を残す決定は変えない（長押しは利用者の明示の操作）。
+// 「つなぐ」は押せるままにし、送れない状態で押したら理由（sendBlockMessage）を出すこと。理由は canSend の判定を
+// 分けたもの（sendBlock: 送っている間 / まちがいが多くて待つ窓の間 / 6 桁そろっていない / 断られた番号のまま）。
 import "./ts-resolve.mjs";
 
 import assert from "node:assert/strict";
@@ -21,6 +23,8 @@ const {
   finishSend,
   initialPairingInput,
   pressDigit,
+  sendBlock,
+  sendBlockMessage,
 } = await import("../src/domain/pairingInput.ts");
 
 const T0 = Date.parse("2026-10-18T00:00:00Z");
@@ -76,7 +80,8 @@ for (const reason of [
     assert.equal(s.failure, reason, "理由を出す");
     assert.equal(s.busy, false);
     assert.equal(canSend(s, T0), false, "同じ番号のままでは押せない");
-    assert.equal(beginSend(s, T0), s, "押しても送り始めない");
+    assert.equal(beginSend(s, T0).busy, false, "押しても送り始めない");
+    assert.equal(beginSend(s, T0).code, s.code);
 
     const changed = changeLastDigit(s);
     assert.notEqual(changed.code, s.code);
@@ -119,7 +124,7 @@ test("too_many_attempts の後は、数字を変えても窓の間は押せず�
     false,
     "窓の終わりの直前も押せない",
   );
-  assert.equal(beginSend(changed, T0 + ATTEMPT_WINDOW_MS - 1), changed);
+  assert.equal(beginSend(changed, T0 + ATTEMPT_WINDOW_MS - 1).busy, false);
   assert.equal(
     canSend(changed, T0 + ATTEMPT_WINDOW_MS),
     true,
@@ -188,4 +193,76 @@ test("期限切れ・使用済みで断られたあと、長押しで全部消�
 test("送っている間（busy）は長押しでも消えない", () => {
   const sending = beginSend(typed("307113"), T0);
   assert.equal(eraseAll(sending), sending);
+});
+
+test("送れない理由（sendBlock）は canSend の判定を分けたもの。送れるときは null", () => {
+  assert.equal(sendBlock(initialPairingInput, T0), "short");
+  assert.equal(sendBlock(typed("12345"), T0), "short");
+  assert.equal(sendBlock(typed("123456"), T0), null);
+  const rejected = sendAndFinish(typed("307114"), "invalid");
+  assert.equal(sendBlock(rejected, T0), "rejected");
+  const locked = changeLastDigit(
+    sendAndFinish(typed("307114"), "too_many_attempts", T0),
+  );
+  assert.equal(sendBlock(locked, T0 + 1), "locked");
+  assert.equal(
+    sendBlock(eraseDigit(locked), T0 + 1),
+    "locked",
+    "待つ窓の間は、6 桁そろっていなくても待つ方を先に出す",
+  );
+  assert.equal(sendBlock(locked, T0 + ATTEMPT_WINDOW_MS), null);
+  assert.equal(sendBlock(beginSend(typed("307113"), T0), T0), "busy");
+  for (const st of [
+    initialPairingInput,
+    typed("12345"),
+    typed("123456"),
+    rejected,
+    locked,
+  ])
+    assert.equal(canSend(st, T0 + 1), sendBlock(st, T0 + 1) === null);
+});
+
+test("押す前は理由を出さない。6 桁未満で「つなぐ」を押すと、送らずに理由を出す", () => {
+  assert.equal(sendBlockMessage(initialPairingInput, T0), null);
+  assert.equal(sendBlockMessage(typed("12345"), T0), null);
+
+  const empty = beginSend(initialPairingInput, T0);
+  assert.equal(empty.busy, false, "送り始めない");
+  assert.match(
+    sendBlockMessage(empty, T0),
+    /6 桁入れて「つなぐ」を押してください/,
+  );
+
+  const five = beginSend(typed("12345"), T0);
+  assert.equal(five.busy, false);
+  assert.equal(five.code, "12345", "数字は残す");
+  assert.match(sendBlockMessage(five, T0), /あと 1 桁/);
+});
+
+test("断られた番号のまま押すと、数字を直すよう理由を出す", () => {
+  const s = beginSend(sendAndFinish(typed("307114"), "invalid"), T0);
+  assert.equal(s.busy, false);
+  assert.match(sendBlockMessage(s, T0), /数字を直して/);
+});
+
+test("待つ窓の間に押すと、待つよう理由を出す。窓が過ぎたら理由は消える", () => {
+  const locked = changeLastDigit(
+    sendAndFinish(typed("307114"), "too_many_attempts", T0),
+  );
+  const s = beginSend(locked, T0 + 1);
+  assert.equal(s.busy, false);
+  assert.match(sendBlockMessage(s, T0 + 1), /待って/);
+  assert.equal(sendBlockMessage(s, T0 + ATTEMPT_WINDOW_MS), null);
+});
+
+test("理由は数字を足す・消す・長押しで消える。送れる状態で押すと理由を出さず送り始める", () => {
+  const tried = beginSend(typed("12345"), T0);
+  assert.notEqual(sendBlockMessage(tried, T0), null);
+  assert.equal(sendBlockMessage(pressDigit(tried, "6"), T0), null);
+  assert.equal(sendBlockMessage(eraseDigit(tried), T0), null);
+  assert.equal(sendBlockMessage(eraseAll(tried), T0), null);
+
+  const sending = beginSend(pressDigit(tried, "6"), T0);
+  assert.equal(sending.busy, true);
+  assert.equal(sendBlockMessage(sending, T0), null);
 });

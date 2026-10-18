@@ -1,12 +1,21 @@
 // 親のスマホ: 子のスマホに出ている 6 桁の番号を入れる。最初の設定として、子が親のスマホで打つ前提。
-// 6 桁そろうと「つなぐ」が押せるようになり、押すと送る。失敗したら理由を平易な 1 文で出し、入れた数字は残す
+// 6 桁入れて「つなぐ」を押すと送る。「つなぐ」は押せるままにし、送れない状態（6 桁そろっていない・待つ窓の間・
+// 断られた番号のまま）で押したら、送らずに理由を出す（子の返信の「送る」と同じ作法）。
+// 失敗したら理由を平易な 1 文で出し、入れた数字は残す
 // （1 桁だけ直して送り直せるように）。「消す」は 1 タップで 1 桁、長押しで全部消す。つながると親のホームへ切り替わる（App.tsx）。
 // 入力の状態と「つなぐ」を押せるかは src/domain/pairingInput.ts が決める（断られた番号は数字を変えるまで送れない）。
 // 低い画面でも「つなぐ」と「消す」がスクロール無しで見えるよう、キーの高さと余白は表示域の高さから決める
 // （src/domain/keypadLayout.ts）。失敗の理由は説明文の場所に出して、全体の高さを変えない。
 
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import Screen from "../../components/Screen";
 import BigButton from "../../components/BigButton";
@@ -16,12 +25,12 @@ import { keypadLayout } from "../../domain/keypadLayout";
 import { INVITE_CODE_LENGTH, redeemMessage } from "../../domain/pairing";
 import {
   beginSend,
-  canSend,
   eraseAll,
   eraseDigit,
   finishSend,
   initialPairingInput,
   pressDigit,
+  sendBlockMessage,
   type SendFailure,
 } from "../../domain/pairingInput";
 import {
@@ -59,10 +68,12 @@ function failureMessage(failure: SendFailure): string {
 export default function ParentPairingScreen() {
   const { redeemInvite } = useSession();
   const [input, setInput] = useState(initialPairingInput);
-  // 「つなぐ」を押せるかの判定に使う時刻。待つ窓が明けたときに進める。
+  // 送れるかの判定に使う時刻。待つ窓が明けたときに進める。
   const [now, setNow] = useState(() => Date.now());
   const { code, busy, failure, lockedUntil } = input;
-  const message = failure ? failureMessage(failure) : null;
+  // 送れない状態で押したときの理由を、送った結果の失敗より先に出す。
+  const message =
+    sendBlockMessage(input, now) ?? (failure ? failureMessage(failure) : null);
   // 表示域（ヘッダーの下）の高さと、説明文（理由が出ていないとき）の高さ。キーの高さを決めるのに使う。
   const [viewport, setViewport] = useState<number | null>(null);
   const [descHeight, setDescHeight] = useState<number | null>(null);
@@ -78,9 +89,16 @@ export default function ParentPairingScreen() {
   const submit = () => {
     const t = Date.now();
     const next = beginSend(input, t);
-    if (next === input) return;
     setInput(next);
     setNow(t);
+    if (!next.busy) {
+      // iOS は画面の変化を自動では読み上げないので、送れない理由を読み上げに通知する。
+      // （Android は下の live region、Web は role="alert" で読み上げられる）
+      const reason = sendBlockMessage(next, t);
+      if (reason && Platform.OS === "ios")
+        AccessibilityInfo.announceForAccessibility(reason);
+      return;
+    }
     redeemInvite(next.code)
       .then((r) => setInput((s) => finishSend(s, r.reason, Date.now())))
       .catch((e: unknown) => {
@@ -115,7 +133,7 @@ export default function ParentPairingScreen() {
           ) : (
             <>
               <Text style={styles.lead}>
-                子のスマホに出ている 6 桁の番号を入れてください
+                子のスマホに出ている番号を、6 桁入れて「つなぐ」を押してください
               </Text>
               <Text style={styles.note}>
                 はじめの設定です。子どもがこのスマホで入れます。
@@ -191,7 +209,7 @@ export default function ParentPairingScreen() {
           variant="primary"
           minHeight={metrics.buttonHeight}
           onPress={submit}
-          disabled={!canSend(input, now)}
+          disabled={busy}
         />
       </View>
     </Screen>
