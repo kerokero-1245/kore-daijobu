@@ -7,13 +7,16 @@
 // あとは残った 6 桁が使えないので、6 回押さずに打ち直せるように。数字を残す決定は変えない（長押しは利用者の明示の操作）。
 // 「つなぐ」は押せるままにし、送れない状態で押したら理由（sendBlockMessage）を出すこと。理由は canSend の判定を
 // 分けたもの（sendBlock: 送っている間 / まちがいが多くて待つ窓の間 / 6 桁そろっていない / 断られた番号のまま）。
+// 断られた番号のまま押したときの理由は、断られた理由ごとに分ける（rejected:<理由>）。数字を直せば通るのは
+// invalid だけで、期限切れ・使用済みは子のスマホで新しい番号を出す、not_parent・already_paired は元の案内の
+// とおりにする。「数字を直して」と出すと、言われたとおり数字を変えた送り直しで失敗の回数を使わせてしまう。
 import "./ts-resolve.mjs";
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 // src は拡張子なしで互いを import するので、解決の補いを入れてから動的 import で読む。
-const { ATTEMPT_WINDOW_MS, INVITE_CODE_LENGTH } =
+const { ATTEMPT_WINDOW_MS, INVITE_CODE_LENGTH, redeemMessage } =
   await import("../src/domain/pairing.ts");
 const {
   beginSend,
@@ -200,7 +203,7 @@ test("送れない理由（sendBlock）は canSend の判定を分けたもの�
   assert.equal(sendBlock(typed("12345"), T0), "short");
   assert.equal(sendBlock(typed("123456"), T0), null);
   const rejected = sendAndFinish(typed("307114"), "invalid");
-  assert.equal(sendBlock(rejected, T0), "rejected");
+  assert.equal(sendBlock(rejected, T0), "rejected:invalid");
   const locked = changeLastDigit(
     sendAndFinish(typed("307114"), "too_many_attempts", T0),
   );
@@ -243,6 +246,49 @@ test("断られた番号のまま押すと、数字を直すよう理由を出�
   const s = beginSend(sendAndFinish(typed("307114"), "invalid"), T0);
   assert.equal(s.busy, false);
   assert.match(sendBlockMessage(s, T0), /数字を直して/);
+});
+
+// 断られた理由ごとの、同じ番号のまま「つなぐ」をもう一度押したあとの文。
+const AFTER_SECOND_PRESS = {
+  invalid:
+    "この番号のままでは送れません。数字を直してから「つなぐ」を押してください。",
+  expired: "子のスマホで新しい番号を出して、その番号を入れてください。",
+  used: "子のスマホで新しい番号を出して、その番号を入れてください。",
+  not_parent: redeemMessage("not_parent"),
+  already_paired: redeemMessage("already_paired"),
+};
+
+for (const [reason, expected] of Object.entries(AFTER_SECOND_PRESS)) {
+  test(`断られた番号のまま 2 回目に押したあとの文（${reason}）`, () => {
+    const refused = sendAndFinish(typed("307114"), reason);
+    assert.equal(refused.failure, reason, "押す前は元の案内（failure）");
+    assert.equal(sendBlockMessage(refused, T0), null, "押す前は理由を出さない");
+    assert.equal(sendBlock(refused, T0), `rejected:${reason}`);
+
+    const again = beginSend(refused, T0);
+    assert.equal(again.busy, false, "数字を変えるまで送らない");
+    assert.equal(sendBlockMessage(again, T0), expected);
+    // 3 回目に押しても同じ文のまま（画面は押すたびに iOS の読み上げに通知する）。
+    const third = beginSend(again, T0);
+    assert.equal(third.busy, false);
+    assert.equal(sendBlockMessage(third, T0), expected);
+
+    // 1 桁消して同じ数字を入れ直しても、断られた理由は覚えている。
+    const retyped = beginSend(pressDigit(eraseDigit(again), "4"), T0);
+    assert.equal(retyped.code, "307114");
+    assert.equal(retyped.busy, false);
+    assert.equal(sendBlockMessage(retyped, T0), expected);
+
+    // 数字を 1 つ変えれば送れる（rejected の扱いは変えない）。
+    assert.equal(beginSend(changeLastDigit(again), T0).busy, true);
+  });
+}
+
+test("数字を直せば通るのは invalid だけ。期限切れ・使用済みは「数字を直して」と言わない", () => {
+  for (const reason of ["expired", "used", "not_parent", "already_paired"]) {
+    const again = beginSend(sendAndFinish(typed("307114"), reason), T0);
+    assert.doesNotMatch(sendBlockMessage(again, T0), /数字を直して/, reason);
+  }
 });
 
 test("待つ窓の間に押すと、待つよう理由を出す。窓が過ぎたら理由は消える", () => {

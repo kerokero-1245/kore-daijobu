@@ -7,24 +7,30 @@
 //   - まちがいが多いと断られたら、回数を数える窓の間は数字を変えても送れない（押すたびにロックが延びるため）。
 //   - 「つなぐ」は押せるままにする。送れない状態で押したら送らずに理由を出す（sendBlockMessage）。
 //     理由は数字を足す・消すと消える（子の返信の「送る」と同じ作法）。
+//   - 断られた番号のまま押したときの理由は、断られた理由ごとに分ける。数字を直せば通るのは invalid だけで、
+//     期限切れ・使用済みは子のスマホで新しい番号を出す、not_parent・already_paired は元の案内のとおりにする
+//     （「数字を直して」と出すと、数字を変えた送り直しで失敗の回数を使わせる）。
 
 import {
   ATTEMPT_WINDOW_MS,
   INVITE_CODE_LENGTH,
+  redeemMessage,
   type RedeemReason,
 } from "./pairing";
 
 // 送った結果。send_error は通信の失敗（DB に届いたか分からない）。
 export type SendOutcome = RedeemReason | "send_error";
 export type SendFailure = Exclude<SendOutcome, "ok">;
+// 番号を断られた理由（この番号のままでは送り直せない）。
+export type RejectReason = Exclude<RedeemReason, "ok" | "too_many_attempts">;
 
 export interface PairingInputState {
   code: string;
   busy: boolean;
   // 画面に理由を出している失敗（数字を足すと消える）。
   failure: SendFailure | null;
-  // 最後に断られた番号（この番号のままでは送れない）。
-  rejectedCode: string | null;
+  // 最後に断られた番号とその理由（この番号のままでは送れない）。
+  rejected: { code: string; reason: RejectReason } | null;
   // まちがいが多いと断られたときの、送れるようになる時刻（ミリ秒）。
   lockedUntil: number | null;
   // 送れない状態で「つなぐ」を押した（理由を出す。数字を足す・消すと消える）。
@@ -33,15 +39,16 @@ export interface PairingInputState {
 
 // 「つなぐ」で送れない理由（canSend の判定を分けたもの）。
 //   busy … 送っている間 / locked … まちがいが多くて待つ窓の間 / short … 6 桁そろっていない /
-//   rejected … 断られた番号のまま
+//   rejected:<理由> … 断られた番号のまま（理由は断られた理由）
 // 待つ窓の間は数字をそろえても送れないので、6 桁そろっていないより先に出す。
-export type SendBlock = "busy" | "locked" | "short" | "rejected";
+export type SendBlock =
+  "busy" | "locked" | "short" | `rejected:${RejectReason}`;
 
 export const initialPairingInput: PairingInputState = {
   code: "",
   busy: false,
   failure: null,
-  rejectedCode: null,
+  rejected: null,
   lockedUntil: null,
   tried: false,
 };
@@ -71,7 +78,8 @@ export function sendBlock(s: PairingInputState, now: number): SendBlock | null {
   if (s.busy) return "busy";
   if (s.lockedUntil !== null && now < s.lockedUntil) return "locked";
   if (s.code.length !== INVITE_CODE_LENGTH) return "short";
-  if (s.rejectedCode !== null && s.code === s.rejectedCode) return "rejected";
+  if (s.rejected !== null && s.code === s.rejected.code)
+    return `rejected:${s.rejected.reason}`;
   return null;
 }
 
@@ -98,8 +106,15 @@ export function sendBlockMessage(
         ? `番号がまだ入っていません。${INVITE_CODE_LENGTH} 桁入れて「つなぐ」を押してください。`
         : `あと ${rest} 桁です。${INVITE_CODE_LENGTH} 桁入れて「つなぐ」を押してください。`;
     }
-    case "rejected":
+    case "rejected:invalid":
       return "この番号のままでは送れません。数字を直してから「つなぐ」を押してください。";
+    case "rejected:expired":
+    case "rejected:used":
+      return "子のスマホで新しい番号を出して、その番号を入れてください。";
+    case "rejected:not_parent":
+      return redeemMessage("not_parent");
+    case "rejected:already_paired":
+      return redeemMessage("already_paired");
   }
 }
 
@@ -137,6 +152,10 @@ export function finishSend(
     case "expired":
     case "not_parent":
     case "already_paired":
-      return { ...done, failure: outcome, rejectedCode: s.code };
+      return {
+        ...done,
+        failure: outcome,
+        rejected: { code: s.code, reason: outcome },
+      };
   }
 }
